@@ -6,6 +6,7 @@
     isWaiting: false,
     abortController: null,
     flashcardMode: false,
+    lastUserMessage: '',
   };
 
   const $ = (s) => document.querySelector(s);
@@ -21,7 +22,9 @@
   const toast = $('#error-toast');
   const toastMsg = $('#toast-message');
   const toastClose = $('.toast-close');
+  const scrollBtn = $('#scroll-bottom');
   let activeModalClose = null;
+  let msgCounter = 0;
 
   function getTheme() {
     return document.documentElement.getAttribute('data-theme') || 'dark';
@@ -45,13 +48,26 @@
 
   let toastTimer = null;
 
-  function showToast(msg) {
+  function showToast(msg, action) {
     toastMsg.textContent = msg;
+    var existingAction = toast.querySelector('.toast-action');
+    if (existingAction) existingAction.remove();
+    if (action) {
+      var btn = document.createElement('button');
+      btn.className = 'toast-action';
+      btn.textContent = action.label;
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        hideToast();
+        if (action.cb) action.cb();
+      });
+      toast.querySelector('.toast-content').after(btn);
+    }
     toast.classList.remove('hidden');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
       toast.classList.add('hidden');
-    }, 5000);
+    }, 8000);
   }
 
   function hideToast() {
@@ -61,9 +77,33 @@
 
   toastClose.addEventListener('click', hideToast);
 
-  function scrollToBottom() {
+  function scrollToBottom(smooth) {
     var main = document.querySelector('main');
-    main.scrollTop = main.scrollHeight;
+    main.scrollTo({ top: main.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  }
+
+  function isNearBottom() {
+    var main = document.querySelector('main');
+    return main.scrollHeight - main.scrollTop - main.clientHeight < 120;
+  }
+
+  var mainEl = document.querySelector('main');
+  if (mainEl) {
+    mainEl.addEventListener('scroll', function () {
+      if (scrollBtn) {
+        scrollBtn.classList.toggle('visible', !isNearBottom());
+      }
+    });
+  }
+
+  if (scrollBtn) {
+    scrollBtn.addEventListener('click', function () {
+      scrollToBottom(true);
+    });
+  }
+
+  function timeStr() {
+    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   function addMessage(role, content) {
@@ -72,6 +112,11 @@
 
     var div = document.createElement('div');
     div.className = 'message ' + role;
+    div.dataset.msgId = ++msgCounter;
+
+    var time = document.createElement('div');
+    time.className = 'message-time';
+    time.textContent = timeStr();
 
     var inner = document.createElement('div');
     inner.className = 'message-content';
@@ -82,10 +127,65 @@
       inner.textContent = content;
     }
 
+    div.appendChild(time);
     div.appendChild(inner);
+
+    if (role === 'bot') {
+      var actions = document.createElement('div');
+      actions.className = 'message-actions';
+
+      var copyBtn = document.createElement('button');
+      copyBtn.className = 'msg-action copy-btn';
+      copyBtn.setAttribute('aria-label', 'Copy response');
+      copyBtn.innerHTML =
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+      copyBtn.addEventListener('click', function () {
+        var text = inner.textContent || '';
+        navigator.clipboard.writeText(text).then(function () {
+          copyBtn.classList.add('copied');
+          setTimeout(function () { copyBtn.classList.remove('copied'); }, 1500);
+        });
+      });
+
+      actions.appendChild(copyBtn);
+      div.appendChild(actions);
+    }
+
     messagesEl.appendChild(div);
     scrollToBottom();
     return div;
+  }
+
+  function addRegenerateButton() {
+    var existing = document.querySelector('.regenerate-bar');
+    if (existing) existing.remove();
+
+    var lastBotMsg = document.querySelector('.message.bot:last-of-type');
+    if (!lastBotMsg) return;
+
+    var bar = document.createElement('div');
+    bar.className = 'regenerate-bar';
+
+    var btn = document.createElement('button');
+    btn.className = 'regenerate-btn';
+    btn.innerHTML =
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Regenerate';
+    btn.addEventListener('click', function () {
+      if (state.isWaiting || !state.lastUserMessage) return;
+      var msgs = document.querySelectorAll('.message.bot:last-of-type');
+      msgs.forEach(function (m) {
+        var actions = m.querySelector('.message-actions');
+        if (actions) actions.remove();
+      });
+      msgs.forEach(function (m) { m.remove(); });
+      var regenBar = document.querySelector('.regenerate-bar');
+      if (regenBar) regenBar.remove();
+      state.history.pop();
+      sendMessage(state.lastUserMessage);
+    });
+
+    bar.appendChild(btn);
+    lastBotMsg.after(bar);
   }
 
   function updateBotMessage(msgEl, content) {
@@ -177,6 +277,9 @@
     document.body.classList.add('modal-open');
     document.body.appendChild(modal);
 
+    var touchStartX = 0;
+    var touchStartY = 0;
+
     function draw() {
       modal.innerHTML = [
         '<div class="flashcard-backdrop" data-close="true"></div>',
@@ -185,6 +288,20 @@
         flashcardDeckHtml(deck, activeIndex),
         '</div>',
       ].join('');
+      var dialog = modal.querySelector('.flashcard-dialog');
+      if (dialog) {
+        dialog.addEventListener('touchstart', function (e) {
+          touchStartX = e.changedTouches[0].screenX;
+          touchStartY = e.changedTouches[0].screenY;
+        }, { passive: true });
+        dialog.addEventListener('touchend', function (e) {
+          var dx = e.changedTouches[0].screenX - touchStartX;
+          var dy = e.changedTouches[0].screenY - touchStartY;
+          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+            move(dx < 0 ? 1 : -1);
+          }
+        }, { passive: true });
+      }
     }
 
     function close() {
@@ -263,6 +380,7 @@
     if (state.isWaiting) return;
     if (!text.trim()) return;
 
+    state.lastUserMessage = text;
     state.isWaiting = true;
     sendBtn.disabled = true;
     inputEl.disabled = true;
@@ -293,7 +411,22 @@
       if (!response.ok) {
         var errData;
         try { errData = await response.json(); } catch (e) {}
-        throw new Error(errData ? errData.detail : 'Request failed with status ' + response.status);
+        var detail = errData ? errData.detail : 'Request failed with status ' + response.status;
+        if (detail && detail.includes('API key')) {
+          showToast('API key not configured. Set OPENROUTER_API_KEY in .env', {
+            label: 'Fix',
+            cb: function () {
+              state.history.push({ role: 'assistant', content: '(attempted retry)' });
+              sendMessage(state.lastUserMessage);
+            },
+          });
+        } else {
+          showToast(detail, {
+            label: 'Retry',
+            cb: function () { sendMessage(state.lastUserMessage); },
+          });
+        }
+        throw new Error(detail);
       }
 
       var reader = response.body.getReader();
@@ -312,21 +445,24 @@
       }
 
       if (!fullContent.trim()) {
-        updateBotMessage(botMsgEl, '_The bot returned an empty response. Try rephrasing your question._');
+        var emptyMsg = '_The bot returned an empty response. Try rephrasing your question._';
+        updateBotMessage(botMsgEl, emptyMsg);
+        showToast('Empty response from model', {
+          label: 'Retry',
+          cb: function () { sendMessage(state.lastUserMessage); },
+        });
       } else if (state.flashcardMode) {
         renderFlashcardDeck(botMsgEl, fullContent);
       }
 
       state.history.push({ role: 'assistant', content: fullContent || '(empty response)' });
+      addRegenerateButton();
     } catch (err) {
       if (err.name === 'AbortError') {
         updateBotMessage(botMsgEl, '_\u200b_');
         return;
       }
-
-      var errorMsg = err.message || 'Something went wrong.';
-      showToast(errorMsg);
-      updateBotMessage(botMsgEl, '**Error:** ' + errorMsg + '\n\n_Try again._');
+      updateBotMessage(botMsgEl, '**Error:** ' + (err.message || 'Something went wrong.') + '\n\n_Try again._');
     } finally {
       state.isWaiting = false;
       sendBtn.disabled = false;
