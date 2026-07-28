@@ -135,12 +135,6 @@ class ChatRequest(BaseModel):
     mode: str = "text"
 
 
-FLASHCARD_FALLBACK_MODELS = [
-    "google/gemma-2-9b-it:free",
-    "meta-llama/llama-3.2-3b-instruct:free",
-]
-
-
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
@@ -162,6 +156,16 @@ async def chat(req: ChatRequest):
         },
     )
 
+    def flashcard_response(content: str):
+        if content and content.strip():
+            try:
+                parsed = extract_json_object(content)
+                if isinstance(parsed.get("cards"), list) and parsed["cards"]:
+                    return True, parsed
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        return False, content
+
     system_prompt = FLASHCARD_SYSTEM_PROMPT if req.mode == "flashcard" else TEXT_SYSTEM_PROMPT
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -174,7 +178,10 @@ async def chat(req: ChatRequest):
             "role": "user",
             "content": "Generate the flashcard deck now. Return only the JSON object with topic and cards.",
         })
-        models_to_try = [model] + FLASHCARD_FALLBACK_MODELS
+        extra_kwargs = {
+            "response_format": {"type": "json_object"},
+        }
+        models_to_try = [model, "inclusionai/ling-3.0-flash:free"]
         last_error = ""
         for attempt_model in models_to_try:
             try:
@@ -184,24 +191,17 @@ async def chat(req: ChatRequest):
                     stream=False,
                     temperature=0.4,
                     max_tokens=2500,
+                    **extra_kwargs,
                 )
                 content = response.choices[0].message.content if response.choices else ""
+                ok, result = flashcard_response(content)
+                if ok:
+                    return StreamingResponse(iter([json.dumps(result)]), media_type="text/plain")
+                last_error = f"Model {attempt_model} returned non-JSON."
             except Exception as exc:
                 last_error = f"Model {attempt_model}: {str(exc)}"
-                continue
 
-            if content and content.strip():
-                try:
-                    parsed = extract_json_object(content)
-                    if isinstance(parsed.get("cards"), list) and parsed["cards"]:
-                        return StreamingResponse(iter([json.dumps(parsed)]), media_type="text/plain")
-                except (json.JSONDecodeError, AttributeError):
-                    last_error = f"Model {attempt_model} returned non-JSON. Raw: " + content[:200]
-                    continue
-
-            last_error = f"Model {attempt_model} returned empty."
-
-        error = f"Flashcard generation failed after {len(models_to_try)} model(s). Last error: {last_error}"
+        error = f"Flashcard generation failed. Last error: {last_error}"
         return StreamingResponse(iter([json.dumps(make_error_flashcards(req.message, error))]), media_type="text/plain")
 
     async def generate():
