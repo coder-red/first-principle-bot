@@ -245,31 +245,55 @@
 
   function flashcardDeckHtml(deck, activeIndex) {
     var card = deck.cards[activeIndex] || {};
+    var total = deck.cards.length;
+    var remaining = total - activeIndex - 1;
+    var isLast = activeIndex === total - 1;
+
+    var peeks = '';
+    for (var i = 1; i <= Math.min(remaining, 3); i++) {
+      var nc = deck.cards[activeIndex + i] || {};
+      var mt = i === 1 ? -28 : -27;
+      peeks += '<div class="peek-card" style="margin-top:' + mt + 'px;z-index:' + (10 - i) + '">' +
+        '<span class="peek-title">' + escapeHtml(safeText(nc.title, 'Card ' + (activeIndex + i + 1))) + '</span>' +
+        '</div>';
+    }
+
     return [
-      '<section class="flashcard-deck" aria-label="Flashcard deck">',
-      '<div class="flashcard-topline"><span>', escapeHtml(deck.topic), '</span><span>', activeIndex + 1, ' / ', deck.cards.length, '</span></div>',
-      '<div class="flashcard-visual">', cardImageSvg(card, activeIndex), '</div>',
-      '<div class="flashcard-body">',
-      '<h2>', escapeHtml(safeText(card.title, 'First principle')), '</h2>',
-      '<p class="flashcard-question">', escapeHtml(safeText(card.question, 'What must be true?')), '</p>',
-      '<div class="flashcard-section"><span>Principle</span><p>', escapeHtml(safeText(card.principle, "I don't know.")), '</p></div>',
-      '<div class="flashcard-section"><span>Explanation</span><p>', escapeHtml(safeText(card.explanation, "I don't know.")), '</p></div>',
-      '<div class="flashcard-takeaway">', escapeHtml(safeText(card.takeaway, 'Keep reducing the idea until only proven pieces remain.')), '</div>',
+      '<div class="stack-scene">',
+      '<div class="stack-header"><span>', escapeHtml(deck.topic), '</span></div>',
+      peeks,
+      '<div class="phys-card" data-phys="1">',
+      '<div class="phys-card-body">',
+      '<div class="phys-marker">', activeIndex + 1, ' / ', total, '</div>',
+      '<h2 class="phys-title">', escapeHtml(safeText(card.title, 'First principle')), '</h2>',
+      '<p class="phys-question">', escapeHtml(safeText(card.question, 'What must be true?')), '</p>',
+      '<div class="phys-section"><span>Principle</span><p>', escapeHtml(safeText(card.principle, "I don't know.")), '</p></div>',
+      '<div class="phys-section"><span>Explanation</span><p>', escapeHtml(safeText(card.explanation, "I don't know.")), '</p></div>',
+      '<div class="phys-takeaway">', escapeHtml(safeText(card.takeaway, 'Keep reducing the idea until only proven pieces remain.')), '</div>',
       '</div>',
-      '<div class="flashcard-controls">',
-      '<button type="button" class="flashcard-prev" ', activeIndex === 0 ? 'disabled' : '', '>Previous</button>',
-      '<div class="flashcard-dots">', deck.cards.map(function (_, i) {
-        return '<button type="button" class="flashcard-dot' + (i === activeIndex ? ' active' : '') + '" data-index="' + i + '" aria-label="Go to card ' + (i + 1) + '"></button>';
+      '</div>',
+      '</div>',
+      '<div class="stack-controls">',
+      '<button type="button" class="s-btn s-prev" ', activeIndex === 0 ? 'disabled' : '', ' aria-label="Previous card">',
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>',
+      '</button>',
+      '<div class="s-dots">', deck.cards.map(function (_, i) {
+        return '<button type="button" class="s-dot' + (i === activeIndex ? ' active' : '') + '" data-i="' + i + '" aria-label="Go to card ' + (i + 1) + '"></button>';
       }).join(''), '</div>',
-      '<button type="button" class="flashcard-next">', activeIndex === deck.cards.length - 1 ? 'Restart' : 'Next', '</button>',
+      '<button type="button" class="s-btn s-next" aria-label="', isLast ? 'Restart' : 'Next card', '">',
+      isLast
+        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>'
+        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>',
+      '</button>',
       '</div>',
-      '</section>',
     ].join('');
   }
 
   function openFlashcardModal(deck) {
     if (activeModalClose) activeModalClose();
     var activeIndex = 0;
+    var animating = false;
+
     var modal = document.createElement('div');
     modal.className = 'flashcard-modal';
     modal.setAttribute('role', 'dialog');
@@ -278,30 +302,38 @@
     document.body.appendChild(modal);
 
     var touchStartX = 0;
-    var touchStartY = 0;
 
     function draw() {
       modal.innerHTML = [
-        '<div class="flashcard-backdrop" data-close="true"></div>',
-        '<div class="flashcard-dialog">',
-        '<button type="button" class="flashcard-close" aria-label="Close flashcards">&times;</button>',
+        '<div class="card-backdrop" data-close="true"></div>',
+        '<div class="card-dialog" data-dialog="1">',
+        '<button type="button" class="card-x" data-close="true" aria-label="Close flashcards">&times;</button>',
         flashcardDeckHtml(deck, activeIndex),
         '</div>',
       ].join('');
-      var dialog = modal.querySelector('.flashcard-dialog');
+      var dialog = modal.querySelector('[data-dialog]');
       if (dialog) {
         dialog.addEventListener('touchstart', function (e) {
           touchStartX = e.changedTouches[0].screenX;
-          touchStartY = e.changedTouches[0].screenY;
         }, { passive: true });
         dialog.addEventListener('touchend', function (e) {
           var dx = e.changedTouches[0].screenX - touchStartX;
-          var dy = e.changedTouches[0].screenY - touchStartY;
-          if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+          if (!animating && Math.abs(dx) > 50) {
             move(dx < 0 ? 1 : -1);
           }
         }, { passive: true });
       }
+      var card = modal.querySelector('.phys-card');
+      if (card) {
+        card.addEventListener('click', function (e) {
+          if (e.target.closest('.s-btn') || e.target.closest('.s-dot') || e.target.closest('.card-x') || e.target.dataset.close) return;
+          if (!animating) move(1);
+        });
+      }
+      requestAnimationFrame(function () {
+        var c = modal.querySelector('.phys-card');
+        if (c) c.classList.add('in');
+      });
     }
 
     function close() {
@@ -313,24 +345,49 @@
 
     function onKeydown(e) {
       if (e.key === 'Escape') close();
-      if (e.key === 'ArrowRight') move(1);
-      if (e.key === 'ArrowLeft') move(-1);
+      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); if (!animating) move(1); }
+      if (e.key === 'ArrowLeft') { e.preventDefault(); if (!animating) move(-1); }
     }
 
-    function move(direction) {
-      if (direction < 0) activeIndex = Math.max(0, activeIndex - 1);
-      else activeIndex = activeIndex === deck.cards.length - 1 ? 0 : activeIndex + 1;
-      draw();
+    function move(dir) {
+      if (animating) return;
+      var total = deck.cards.length;
+      if (dir < 0) {
+        if (activeIndex === 0) return;
+        activeIndex -= 1;
+      } else {
+        if (activeIndex === total - 1) { activeIndex = 0; }
+        else { activeIndex += 1; }
+      }
+      animating = true;
+      var cardEl = modal.querySelector('.phys-card');
+      if (cardEl) {
+        cardEl.classList.remove('in');
+        cardEl.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
+        cardEl.style.transform = dir < 0 ? 'translateX(-40px)' : 'translateX(40px)';
+        cardEl.style.opacity = '0';
+      }
+      setTimeout(function () {
+        draw();
+        animating = false;
+      }, 220);
     }
 
     modal.addEventListener('click', function (e) {
-      var dot = e.target.closest('.flashcard-dot');
-      if (dot) activeIndex = Number(dot.dataset.index) || 0;
-      else if (e.target.closest('.flashcard-prev')) activeIndex = Math.max(0, activeIndex - 1);
-      else if (e.target.closest('.flashcard-next')) activeIndex = activeIndex === deck.cards.length - 1 ? 0 : activeIndex + 1;
-      else if (e.target.closest('.flashcard-close') || e.target.dataset.close === 'true') return close();
-      else return;
-      draw();
+      var dot = e.target.closest('.s-dot');
+      if (dot) {
+        var i = parseInt(dot.dataset.i);
+        if (!isNaN(i) && i !== activeIndex && !animating) {
+          activeIndex = i;
+          animating = true;
+          draw();
+          animating = false;
+        }
+        return;
+      }
+      if (e.target.closest('.s-prev')) { e.preventDefault(); if (!animating) move(-1); return; }
+      if (e.target.closest('.s-next')) { e.preventDefault(); if (!animating) move(1); return; }
+      if (e.target.closest('.card-x') || e.target.dataset.close === 'true') { close(); }
     });
 
     activeModalClose = close;
@@ -348,20 +405,32 @@
       return;
     }
 
-    var firstCard = deck.cards[0] || {};
     var inner = msgEl.querySelector('.message-content');
     msgEl.classList.add('flashcard-mode');
+    var total = deck.cards.length;
+    var firstTitle = escapeHtml(safeText(deck.cards[0] ? deck.cards[0].title : '', ''));
+    var topic = escapeHtml(deck.topic);
+    var stackHtml = '<div class="preview-stack">';
+    for (var i = Math.min(total, 3); i >= 1; i--) {
+      var tilt = (i - 1) * 2.5;
+      var leftOff = (i - 1) * 4;
+      var bottomOff = (i - 1) * 4;
+      var z = i + 1;
+      var scale = 1 - (total - i) * 0.015;
+      stackHtml += '<div class="preview-card pc-' + i + '" style="z-index:' + z + ';transform:rotate(' + (-tilt) + 'deg) translateX(' + leftOff + 'px) translateY(' + (-bottomOff) + 'px) scale(' + scale + ')"></div>';
+    }
+    stackHtml += '</div>';
     inner.innerHTML = [
-      '<button type="button" class="flashcard-preview">',
-      '<span class="flashcard-preview-art">', cardImageSvg(firstCard, 0), '</span>',
-      '<span class="flashcard-preview-copy">',
-      '<span class="flashcard-preview-label">Flashcard deck</span>',
-      '<strong>', escapeHtml(deck.topic), '</strong>',
-      '<small>', deck.cards.length, ' cards - click to open</small>',
-      '</span>',
+      '<button type="button" class="mini-deck">',
+      stackHtml,
+      '<div class="mini-deck-body">',
+      '<span class="mini-label">' + total + ' cards</span>',
+      '<strong class="mini-topic">' + topic + '</strong>',
+      '<span class="mini-sub">' + firstTitle + '</span>',
+      '</div>',
       '</button>',
     ].join('');
-    inner.querySelector('.flashcard-preview').addEventListener('click', function () {
+    inner.querySelector('.mini-deck').addEventListener('click', function () {
       openFlashcardModal(deck);
     });
     scrollToBottom();
