@@ -368,6 +368,10 @@
   }
 
   function showTyping() {
+    var label = typingEl.querySelector('.typing-label');
+    if (label) {
+      label.textContent = state.flashcardMode ? 'Generating flashcards...' : 'Thinking from first principles...';
+    }
     typingEl.classList.remove('hidden');
     scrollToBottom();
   }
@@ -527,6 +531,10 @@
     modeOptions.forEach(function (el) {
       el.classList.toggle('active', el.dataset.mode === mode);
     });
+    var badge = document.getElementById('mode-badge');
+    if (badge) {
+      badge.classList.toggle('hidden', mode !== 'flashcard');
+    }
   }
 
   modeOptions.forEach(function (el) {

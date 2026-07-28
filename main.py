@@ -134,6 +134,13 @@ class ChatRequest(BaseModel):
     history: List[dict] = []
     mode: str = "text"
 
+
+FLASHCARD_FALLBACK_MODELS = [
+    "google/gemma-2-9b-it:free",
+    "meta-llama/llama-3.2-3b-instruct:free",
+]
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
@@ -158,7 +165,7 @@ async def chat(req: ChatRequest):
     system_prompt = FLASHCARD_SYSTEM_PROMPT if req.mode == "flashcard" else TEXT_SYSTEM_PROMPT
 
     messages = [{"role": "system", "content": system_prompt}]
-    for msg in req.history[-20:]:  # keep context manageable
+    for msg in req.history[-20:]:
         messages.append({"role": msg["role"], "content": msg["content"]})
     messages.append({"role": "user", "content": req.message})
 
@@ -167,29 +174,34 @@ async def chat(req: ChatRequest):
             "role": "user",
             "content": "Generate the flashcard deck now. Return only the JSON object with topic and cards.",
         })
-        try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=False,
-                temperature=0.4,
-                max_tokens=2500,
-            )
-            content = response.choices[0].message.content if response.choices else ""
-        except Exception as exc:
-            error = f"Model provider error: {str(exc)}"
-            return StreamingResponse(iter([json.dumps(make_error_flashcards(req.message, error))]), media_type="text/plain")
-
-        if content and content.strip():
+        models_to_try = [model] + FLASHCARD_FALLBACK_MODELS
+        last_error = ""
+        for attempt_model in models_to_try:
             try:
-                parsed = extract_json_object(content)
-                if isinstance(parsed.get("cards"), list) and parsed["cards"]:
-                    return StreamingResponse(iter([json.dumps(parsed)]), media_type="text/plain")
-            except (json.JSONDecodeError, AttributeError):
-                error = "The model replied, but it did not return valid flashcard JSON. Raw response: " + content[:700]
-                return StreamingResponse(iter([json.dumps(make_error_flashcards(req.message, error))]), media_type="text/plain")
+                response = await client.chat.completions.create(
+                    model=attempt_model,
+                    messages=messages,
+                    stream=False,
+                    temperature=0.4,
+                    max_tokens=2500,
+                )
+                content = response.choices[0].message.content if response.choices else ""
+            except Exception as exc:
+                last_error = f"Model {attempt_model}: {str(exc)}"
+                continue
 
-        error = "The model returned an empty message. Check that MODEL points to a chat model that supports completions."
+            if content and content.strip():
+                try:
+                    parsed = extract_json_object(content)
+                    if isinstance(parsed.get("cards"), list) and parsed["cards"]:
+                        return StreamingResponse(iter([json.dumps(parsed)]), media_type="text/plain")
+                except (json.JSONDecodeError, AttributeError):
+                    last_error = f"Model {attempt_model} returned non-JSON. Raw: " + content[:200]
+                    continue
+
+            last_error = f"Model {attempt_model} returned empty."
+
+        error = f"Flashcard generation failed after {len(models_to_try)} model(s). Last error: {last_error}"
         return StreamingResponse(iter([json.dumps(make_error_flashcards(req.message, error))]), media_type="text/plain")
 
     async def generate():
