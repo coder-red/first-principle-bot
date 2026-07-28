@@ -27,7 +27,6 @@ def make_error_flashcards(topic: str, error: str) -> dict:
         "cards": [
             {
                 "title": "I Could Not Generate This Deck",
-                "imagePrompt": "warning panel with API connection and flashcard labels",
                 "question": f"Why did the bot fail to answer: {topic[:80]}?",
                 "principle": "[VERIFIED] The app needs a working model response before it can create topic-specific cards.",
                 "explanation": error,
@@ -111,7 +110,6 @@ JSON shape:
   "cards": [
     {
       "title": "short card title",
-      "imagePrompt": "concrete visual description for a simple educational illustration",
       "question": "one clear question this card answers",
       "principle": "one [ATOMIC] or [VERIFIED] first principle",
       "explanation": "2-4 short sentences that explain the idea from the principle",
@@ -126,8 +124,7 @@ STRICT RULES:
 1. ZERO analogies. Never say "it's like" or "similar to".
 2. Use only [ATOMIC] truths and [VERIFIED] facts as principles.
 3. If you don't know something, say "I don't know" in the relevant card.
-4. Keep each explanation easy for a curious 16-year-old.
-5. imagePrompt must describe visible objects, labels, or physical structures from the card topic."""
+4. Keep each explanation easy for a curious 16-year-old."""
 
 class ChatRequest(BaseModel):
     message: str
@@ -245,7 +242,6 @@ async def sample_flashcards():
         "cards": [
             {
                 "title": "Sunlight Contains Many Wavelengths",
-                "imagePrompt": "sunlight split into labeled red green blue violet wavelengths",
                 "question": "What reaches Earth's atmosphere from the Sun?",
                 "principle": "[VERIFIED] Sunlight contains visible electromagnetic waves with different wavelengths.",
                 "explanation": "Visible sunlight is not one wavelength. Measurements with prisms and spectrometers show a range from shorter violet and blue wavelengths to longer red wavelengths.",
@@ -253,7 +249,6 @@ async def sample_flashcards():
             },
             {
                 "title": "Air Molecules Scatter Light",
-                "imagePrompt": "tiny nitrogen and oxygen molecules scattering blue rays in the atmosphere",
                 "question": "What does air do to incoming light?",
                 "principle": "[VERIFIED] Gas molecules can redirect incoming electromagnetic waves.",
                 "explanation": "Earth's atmosphere contains small gas molecules. When sunlight passes through them, some light is redirected away from its original path and moves toward your eyes from different parts of the sky.",
@@ -261,7 +256,6 @@ async def sample_flashcards():
             },
             {
                 "title": "Short Wavelengths Scatter More",
-                "imagePrompt": "blue light rays scattered strongly while red rays travel straighter",
                 "question": "Why is the scattered light mostly blue?",
                 "principle": "[VERIFIED] Rayleigh scattering is stronger for shorter visible wavelengths.",
                 "explanation": "Blue light has a shorter wavelength than red light. In clean air, shorter visible wavelengths are redirected more strongly, so more blue light reaches your eyes from the open sky.",
@@ -269,7 +263,6 @@ async def sample_flashcards():
             },
             {
                 "title": "Your Eyes Complete The Perception",
-                "imagePrompt": "human eye receiving scattered blue light from the daytime sky",
                 "question": "Why do we perceive blue instead of violet?",
                 "principle": "[VERIFIED] Human color vision depends on cone sensitivity and the light that reaches the retina.",
                 "explanation": "Violet is also scattered strongly, but there is less violet in sunlight, some is absorbed higher in the atmosphere, and human eyes are less sensitive to it. The combined signal is perceived as blue.",

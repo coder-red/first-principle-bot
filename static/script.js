@@ -200,33 +200,6 @@
     return typeof value === 'string' && value.trim() ? value.trim() : fallback;
   }
 
-  function cardImageSvg(card, index) {
-    var prompt = safeText(card.imagePrompt, card.title || 'first principles');
-    var words = prompt.split(/\s+/).filter(Boolean).slice(0, 5);
-    var palette = [
-      ['#32d6a0', '#1f6feb', '#f7c948'],
-      ['#ff8a5b', '#7353ba', '#2ec4b6'],
-      ['#4cc9f0', '#4361ee', '#f72585'],
-      ['#a7f3d0', '#f59e0b', '#ef4444'],
-      ['#93c5fd', '#14b8a6', '#f97316'],
-      ['#c4b5fd', '#22c55e', '#eab308'],
-    ][index % 6];
-    var label = escapeHtml(words.slice(0, 3).join(' '));
-    return [
-      '<svg class="flashcard-art" viewBox="0 0 640 280" role="img" aria-label="', escapeHtml(prompt), '">',
-      '<rect width="640" height="280" rx="8" fill="', palette[0], '" opacity="0.16"/>',
-      '<circle cx="106" cy="86" r="48" fill="', palette[1], '" opacity="0.85"/>',
-      '<rect x="178" y="58" width="306" height="26" rx="8" fill="currentColor" opacity="0.16"/>',
-      '<rect x="178" y="104" width="226" height="20" rx="8" fill="currentColor" opacity="0.12"/>',
-      '<path d="M118 186 C190 116 266 214 338 144 S492 108 560 184" fill="none" stroke="', palette[2], '" stroke-width="12" stroke-linecap="round"/>',
-      '<g fill="currentColor" opacity="0.72">',
-      '<circle cx="150" cy="188" r="10"/><circle cx="338" cy="144" r="10"/><circle cx="560" cy="184" r="10"/>',
-      '</g>',
-      '<text x="40" y="246" fill="currentColor" opacity="0.78" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="700">', label, '</text>',
-      '</svg>',
-    ].join('');
-  }
-
   function escapeHtml(text) {
     return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
