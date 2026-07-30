@@ -1,30 +1,78 @@
 (function () {
   'use strict';
 
-  const state = {
+  var state = {
     history: [],
     isWaiting: false,
     abortController: null,
-    flashcardMode: false,
-    lastUserMessage: '',
+    lastQuestion: '',
+    lastFocus: null,
+    lastDeckEl: null,
+    regenBar: null,
   };
 
-  const $ = (s) => document.querySelector(s);
-  const $$ = (s) => document.querySelectorAll(s);
+  var $ = function (s) { return document.querySelector(s); };
 
-  const messagesEl = $('#messages');
-  const inputEl = $('#message-input');
-  const sendBtn = $('#send-btn');
-  const form = $('#input-form');
-  const typingEl = $('#typing-indicator');
-  const themeBtn = $('#theme-toggle');
-  const modeOptions = $$('.mode-option');
-  const toast = $('#error-toast');
-  const toastMsg = $('#toast-message');
-  const toastClose = $('.toast-close');
-  const scrollBtn = $('#scroll-bottom');
-  let activeModalClose = null;
-  let msgCounter = 0;
+  var messagesEl = $('#messages');
+  var inputEl = $('#message-input');
+  var sendBtn = $('#send-btn');
+  var form = $('#input-form');
+  var typingEl = $('#typing-indicator');
+  var themeBtn = $('#theme-toggle');
+  var toast = $('#error-toast');
+  var toastMsg = $('#toast-message');
+  var toastClose = $('.toast-close');
+  var scrollBtn = $('#scroll-bottom');
+  var mainEl = document.querySelector('main');
+  var suggestionsEl = $('#suggestions');
+  var shuffleBtn = $('#shuffle-suggestions');
+  var activeModalClose = null;
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  /* ── DOM helpers ───────────────────────────────────────────────────────
+     Everything is built as nodes with textContent. Model output never passes
+     through innerHTML, so there is no markup-injection surface at all. */
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text != null) node.textContent = text;
+    return node;
+  }
+
+  function svg(paths, size, width) {
+    var ns = 'http://www.w3.org/2000/svg';
+    var s = document.createElementNS(ns, 'svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('width', size || 16);
+    s.setAttribute('height', size || 16);
+    s.setAttribute('fill', 'none');
+    s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', width || 2);
+    s.setAttribute('stroke-linecap', 'round');
+    s.setAttribute('stroke-linejoin', 'round');
+    s.setAttribute('aria-hidden', 'true');
+    paths.forEach(function (d) {
+      var p = document.createElementNS(ns, 'path');
+      p.setAttribute('d', d);
+      s.appendChild(p);
+    });
+    return s;
+  }
+
+  var ICON = {
+    prev: ['M15 18 L9 12 L15 6'],
+    next: ['M9 18 L15 12 L9 6'],
+    restart: ['M1 4 v6 h6', 'M3.51 15a9 9 0 1 0 2.13-9.36L1 10'],
+    copy: ['M9 9 h11 a2 2 0 0 1 2 2 v11 a2 2 0 0 1 -2 2 h-11 a2 2 0 0 1 -2 -2 v-11 a2 2 0 0 1 2 -2 z',
+           'M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'],
+    check: ['M20 6 L9 17 L4 12'],
+    deeper: ['M12 5 v14', 'M19 12 l-7 7 -7 -7'],
+    send: ['M22 2 L11 13', 'M22 2 L15 22 L11 13 L2 9 Z'],
+  };
+
+  /* ── theme ─────────────────────────────────────────────────────────── */
 
   function getTheme() {
     return document.documentElement.getAttribute('data-theme') || 'dark';
@@ -35,27 +83,22 @@
     localStorage.setItem('fp_theme', t);
   }
 
-  const savedTheme = localStorage.getItem('fp_theme');
-  if (savedTheme) {
-    setTheme(savedTheme);
-  } else {
-    setTheme('dark');
-  }
-
+  setTheme(localStorage.getItem('fp_theme') || 'dark');
   themeBtn.addEventListener('click', function () {
     setTheme(getTheme() === 'dark' ? 'light' : 'dark');
   });
 
-  let toastTimer = null;
+  /* ── toast ─────────────────────────────────────────────────────────── */
+
+  var toastTimer = null;
 
   function showToast(msg, action) {
     toastMsg.textContent = msg;
-    var existingAction = toast.querySelector('.toast-action');
-    if (existingAction) existingAction.remove();
+    var existing = toast.querySelector('.toast-action');
+    if (existing) existing.remove();
     if (action) {
-      var btn = document.createElement('button');
-      btn.className = 'toast-action';
-      btn.textContent = action.label;
+      var btn = el('button', 'toast-action', action.label);
+      btn.type = 'button';
       btn.addEventListener('click', function (e) {
         e.stopPropagation();
         hideToast();
@@ -65,9 +108,7 @@
     }
     toast.classList.remove('hidden');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () {
-      toast.classList.add('hidden');
-    }, 8000);
+    toastTimer = setTimeout(hideToast, 8000);
   }
 
   function hideToast() {
@@ -77,343 +118,748 @@
 
   toastClose.addEventListener('click', hideToast);
 
+  /* ── scrolling ─────────────────────────────────────────────────────── */
+
   function scrollToBottom(smooth) {
-    var main = document.querySelector('main');
-    main.scrollTo({ top: main.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+    mainEl.scrollTo({ top: mainEl.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
   }
 
   function isNearBottom() {
-    var main = document.querySelector('main');
-    return main.scrollHeight - main.scrollTop - main.clientHeight < 120;
+    return mainEl.scrollHeight - mainEl.scrollTop - mainEl.clientHeight < 120;
   }
 
-  var mainEl = document.querySelector('main');
-  if (mainEl) {
-    mainEl.addEventListener('scroll', function () {
-      if (scrollBtn) {
-        scrollBtn.classList.toggle('visible', !isNearBottom());
-      }
-    });
-  }
+  mainEl.addEventListener('scroll', function () {
+    scrollBtn.classList.toggle('visible', !isNearBottom());
+  });
+  scrollBtn.addEventListener('click', function () { scrollToBottom(true); });
 
-  if (scrollBtn) {
-    scrollBtn.addEventListener('click', function () {
-      scrollToBottom(true);
-    });
-  }
+  /* ── suggestions ───────────────────────────────────────────────────── */
 
-  function timeStr() {
-    return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  }
+  /* Questions where the conventional answer is itself a convention —
+     decomposing them actually pays off, which is the point of the app.
+     No emoji: newer codepoints render as tofu on Windows, and a precise tool
+     reads better without them. */
+  var QUESTION_POOL = [
+    'Why do planes actually stay up?',
+    'Why does a mirror flip left to right but not up and down?',
+    'What is money, really?',
+    'What is fire?',
+    'Why can nothing travel faster than light?',
+    'Why do we have to sleep?',
+    'Why does ice float when almost every other solid sinks?',
+    'Why does music sound good?',
+    'Why can you not tickle yourself?',
+    'What is actually moving when electricity flows?',
+    'How do we know the Earth is round without leaving it?',
+    'Why is glass transparent?',
+    'How does a magnet pull on something it never touches?',
+    'Why is the sky blue?',
+    'Why can we not remember being a baby?',
+    'What is time?',
+    'How does anaesthesia switch consciousness off?',
+    'Why is the sea salty but rivers are not?',
+  ];
 
-  function addMessage(role, content) {
-    var welcome = document.querySelector('.welcome');
-    if (welcome) welcome.remove();
+  var poolCursor = Math.floor(Math.random() * QUESTION_POOL.length);
 
-    var div = document.createElement('div');
-    div.className = 'message ' + role;
-    div.dataset.msgId = ++msgCounter;
-
-    var time = document.createElement('div');
-    time.className = 'message-time';
-    time.textContent = timeStr();
-
-    var inner = document.createElement('div');
-    inner.className = 'message-content';
-
-    if (role === 'bot') {
-      inner.innerHTML = marked.parse(content);
-    } else {
-      inner.textContent = content;
+  function renderSuggestions() {
+    if (!suggestionsEl) return;
+    var picks = [];
+    for (var i = 0; i < 4; i++) {
+      picks.push(QUESTION_POOL[(poolCursor + i) % QUESTION_POOL.length]);
     }
+    poolCursor = (poolCursor + 4) % QUESTION_POOL.length;
 
-    div.appendChild(time);
-    div.appendChild(inner);
+    suggestionsEl.replaceChildren();
+    picks.forEach(function (question) {
+      var chip = el('button', 'suggestion-chip');
+      chip.type = 'button';
+      chip.dataset.prompt = question;
+      chip.appendChild(el('span', 'chip-text', question));
+      chip.appendChild(el('span', 'chip-arrow', '→'));
+      suggestionsEl.appendChild(chip);
+    });
+  }
 
-    if (role === 'bot') {
-      var actions = document.createElement('div');
-      actions.className = 'message-actions';
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener('click', function () {
+      renderSuggestions();
+      suggestionsEl.classList.remove('reshuffled');
+      void suggestionsEl.offsetWidth;
+      suggestionsEl.classList.add('reshuffled');
+    });
+  }
 
-      var copyBtn = document.createElement('button');
-      copyBtn.className = 'msg-action copy-btn';
-      copyBtn.setAttribute('aria-label', 'Copy response');
-      copyBtn.innerHTML =
-        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
-      copyBtn.addEventListener('click', function () {
-        var text = inner.textContent || '';
-        navigator.clipboard.writeText(text).then(function () {
-          copyBtn.classList.add('copied');
-          setTimeout(function () { copyBtn.classList.remove('copied'); }, 1500);
+  /* ── epistemic tags ────────────────────────────────────────────────── */
+
+  var TAG_META = {
+    ATOMIC:     { glyph: '◆', label: 'Atomic',     hint: 'Irreducible — cannot be broken down further' },
+    VERIFIED:   { glyph: '✓', label: 'Verified',   hint: 'Empirically confirmed, but could be otherwise' },
+    CONVENTION: { glyph: '≈', label: 'Convention', hint: 'Widely accepted, not proven' },
+    ASSUMPTION: { glyph: '○', label: 'Assumption', hint: 'Taken for granted' },
+    UNKNOWN:    { glyph: '?', label: 'Unknown',    hint: 'Not known — reasoning stops here' },
+  };
+
+  var PHASE_LABEL = {
+    question: 'Starting point',
+    descent:  'Descent',
+    bedrock:  'Bedrock',
+    rebuild:  'Rebuild',
+    insight:  'Insight',
+  };
+
+  function phaseText(card) {
+    var base = PHASE_LABEL[card.phase] || 'Step';
+    if (card.phase === 'question' || card.phase === 'insight') return base;
+    return base + ' · Level ' + card.level;
+  }
+
+  function buildTagChip(tag, small) {
+    var meta = TAG_META[tag];
+    if (!meta) return null;
+    var chip = el('span', 'tag-chip tag-' + tag.toLowerCase() + (small ? ' tag-sm' : ''));
+    chip.appendChild(el('span', 'tag-glyph', meta.glyph));
+    chip.appendChild(el('span', 'tag-label', meta.label));
+    chip.title = meta.hint;
+    return chip;
+  }
+
+  function buildSection(label, className) {
+    var section = el('section', 'card-section ' + (className || ''));
+    section.appendChild(el('h3', 'card-section-label', label));
+    return section;
+  }
+
+  /* ── the chain ladder ──────────────────────────────────────────────────
+     Each rung is one level of decomposition and is itself a drill-down
+     target: the chain is explorable, not a fixed picture. */
+  function buildChain(chain, tag, onDrill) {
+    var section = buildSection('The chain', 'chain-section');
+    var list = el('ol', 'chain');
+    chain.forEach(function (step, i) {
+      var isLast = i === chain.length - 1;
+      var item = el('li', 'chain-step' + (isLast ? ' is-last' : ''));
+      item.style.setProperty('--rung', i);
+      item.appendChild(el('span', 'chain-node', isLast && tag === 'ATOMIC' ? '◆' : ''));
+
+      if (onDrill) {
+        var btn = el('button', 'chain-text chain-drill');
+        btn.type = 'button';
+        btn.appendChild(el('span', null, step));
+        btn.appendChild(el('span', 'chain-drill-hint', 'go deeper'));
+        btn.title = 'Decompose: ' + step;
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          onDrill({ title: step, principle: step, chain: chain.slice(0, i + 1) });
         });
-      });
-
-      actions.appendChild(copyBtn);
-      div.appendChild(actions);
-    }
-
-    messagesEl.appendChild(div);
-    scrollToBottom();
-    return div;
-  }
-
-  function addRegenerateButton() {
-    var existing = document.querySelector('.regenerate-bar');
-    if (existing) existing.remove();
-
-    var lastBotMsg = document.querySelector('.message.bot:last-of-type');
-    if (!lastBotMsg) return;
-
-    var bar = document.createElement('div');
-    bar.className = 'regenerate-bar';
-
-    var btn = document.createElement('button');
-    btn.className = 'regenerate-btn';
-    btn.innerHTML =
-      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Regenerate';
-    btn.addEventListener('click', function () {
-      if (state.isWaiting || !state.lastUserMessage) return;
-      var msgs = document.querySelectorAll('.message.bot:last-of-type');
-      msgs.forEach(function (m) {
-        var actions = m.querySelector('.message-actions');
-        if (actions) actions.remove();
-      });
-      msgs.forEach(function (m) { m.remove(); });
-      var regenBar = document.querySelector('.regenerate-bar');
-      if (regenBar) regenBar.remove();
-      state.history.pop();
-      sendMessage(state.lastUserMessage);
+        item.appendChild(btn);
+      } else {
+        item.appendChild(el('span', 'chain-text', step));
+      }
+      list.appendChild(item);
     });
-
-    bar.appendChild(btn);
-    lastBotMsg.after(bar);
+    section.appendChild(list);
+    return section;
   }
 
-  function updateBotMessage(msgEl, content) {
-    var inner = msgEl.querySelector('.message-content');
-    if (inner) {
-      inner.innerHTML = marked.parse(content);
-    }
-    scrollToBottom();
+  function buildDiscarded(discarded) {
+    var section = buildSection('Discarded here', 'discarded-section');
+    var list = el('ul', 'discarded');
+    discarded.forEach(function (item) {
+      var li = el('li', 'discarded-item');
+      li.appendChild(el('span', 'discarded-mark', '✕'));
+      li.appendChild(el('span', null, item));
+      list.appendChild(li);
+    });
+    section.appendChild(list);
+    return section;
   }
 
-  function safeText(value, fallback) {
-    return typeof value === 'string' && value.trim() ? value.trim() : fallback;
-  }
+  function buildCardFace(deck, index, onDrill) {
+    var card = deck.cards[index];
+    var frag = document.createDocumentFragment();
 
-  function escapeHtml(text) {
-    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  }
+    var head = el('div', 'card-head');
+    head.appendChild(el('span', 'card-phase', phaseText(card)));
+    var chip = buildTagChip(card.tag);
+    if (chip) head.appendChild(chip);
+    frag.appendChild(head);
 
-  function parseFlashcardDeck(content) {
-    var cleaned = content.trim().replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
-    var data = JSON.parse(cleaned);
-    if (!data.cards || !Array.isArray(data.cards) || data.cards.length === 0) {
-      throw new Error('Flashcard response did not include cards.');
-    }
-    return {
-      topic: safeText(data.topic, 'Flashcards'),
-      cards: data.cards.slice(0, 8),
-    };
-  }
+    frag.appendChild(el('h2', 'card-title', card.title));
+    frag.appendChild(el('p', 'card-question', card.question));
 
-  function flashcardDeckHtml(deck, activeIndex) {
-    var card = deck.cards[activeIndex] || {};
-    var total = deck.cards.length;
-    var remaining = total - activeIndex - 1;
-    var isLast = activeIndex === total - 1;
-
-    var peeks = '';
-    for (var i = 1; i <= Math.min(remaining, 3); i++) {
-      var nc = deck.cards[activeIndex + i] || {};
-      var mt = i === 1 ? -28 : -27;
-      peeks += '<div class="peek-card" style="margin-top:' + mt + 'px;z-index:' + (10 - i) + '">' +
-        '<span class="peek-title">' + escapeHtml(safeText(nc.title, 'Card ' + (activeIndex + i + 1))) + '</span>' +
-        '</div>';
+    if (card.principle) {
+      var principle = buildSection('Principle', 'principle-section');
+      principle.appendChild(el('p', 'card-principle', card.principle));
+      frag.appendChild(principle);
     }
 
-    return [
-      '<div class="stack-scene">',
-      '<div class="stack-header"><span>', escapeHtml(deck.topic), '</span></div>',
-      peeks,
-      '<div class="phys-card" data-phys="1">',
-      '<div class="phys-card-body">',
-      '<div class="phys-marker">', activeIndex + 1, ' / ', total, '</div>',
-      '<h2 class="phys-title">', escapeHtml(safeText(card.title, 'First principle')), '</h2>',
-      '<p class="phys-question">', escapeHtml(safeText(card.question, 'What must be true?')), '</p>',
-      '<div class="phys-section"><span>Principle</span><p>', escapeHtml(safeText(card.principle, "I don't know.")), '</p></div>',
-      '<div class="phys-section"><span>Explanation</span><p>', escapeHtml(safeText(card.explanation, "I don't know.")), '</p></div>',
-      '<div class="phys-takeaway">', escapeHtml(safeText(card.takeaway, 'Keep reducing the idea until only proven pieces remain.')), '</div>',
-      '</div>',
-      '</div>',
-      '</div>',
-      '<div class="stack-controls">',
-      '<button type="button" class="s-btn s-prev" ', activeIndex === 0 ? 'disabled' : '', ' aria-label="Previous card">',
-      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>',
-      '</button>',
-      '<div class="s-dots">', deck.cards.map(function (_, i) {
-        return '<button type="button" class="s-dot' + (i === activeIndex ? ' active' : '') + '" data-i="' + i + '" aria-label="Go to card ' + (i + 1) + '"></button>';
-      }).join(''), '</div>',
-      '<button type="button" class="s-btn s-next" aria-label="', isLast ? 'Restart' : 'Next card', '">',
-      isLast
-        ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>'
-        : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="9 18 15 12 9 6"/></svg>',
-      '</button>',
-      '</div>',
-    ].join('');
+    if (card.chain && card.chain.length) {
+      frag.appendChild(buildChain(card.chain, card.tag, onDrill));
+    }
+
+    if (card.discarded && card.discarded.length) {
+      frag.appendChild(buildDiscarded(card.discarded));
+    }
+
+    if (card.explanation) {
+      var why = buildSection('Why', 'why-section');
+      why.appendChild(el('p', 'card-explanation', card.explanation));
+      frag.appendChild(why);
+    }
+
+    if (card.takeaway) {
+      frag.appendChild(el('p', 'card-takeaway', card.takeaway));
+    }
+
+    if (onDrill && card.principle && card.tag !== 'ATOMIC') {
+      var deeper = el('button', 'go-deeper');
+      deeper.type = 'button';
+      deeper.appendChild(svg(ICON.deeper, 14));
+      deeper.appendChild(el('span', null, 'Decompose this further'));
+      deeper.addEventListener('click', function (e) {
+        e.stopPropagation();
+        onDrill({ title: card.title, principle: card.principle, chain: card.chain || [] });
+      });
+      frag.appendChild(deeper);
+    }
+
+    return frag;
   }
 
-  function openFlashcardModal(deck) {
+  /* ── prose view ────────────────────────────────────────────────────────
+     Built from the SAME deck JSON as the cards — one model call, two
+     renderings. No second prompt and no markdown wall to style. */
+
+  function proseBlock(card, onDrill) {
+    var block = el('article', 'prose-step phase-' + card.phase);
+
+    var head = el('div', 'prose-step-head');
+    head.appendChild(el('span', 'prose-step-phase', phaseText(card)));
+    var chip = buildTagChip(card.tag, true);
+    if (chip) head.appendChild(chip);
+    block.appendChild(head);
+
+    block.appendChild(el('h3', 'prose-step-title', card.title));
+    if (card.principle) block.appendChild(el('p', 'prose-principle', card.principle));
+    if (card.explanation) block.appendChild(el('p', 'prose-explanation', card.explanation));
+
+    if (card.discarded && card.discarded.length) {
+      var list = el('ul', 'discarded prose-discarded');
+      card.discarded.forEach(function (d) {
+        var li = el('li', 'discarded-item');
+        li.appendChild(el('span', 'discarded-mark', '✕'));
+        li.appendChild(el('span', null, d));
+        list.appendChild(li);
+      });
+      block.appendChild(list);
+    }
+    return block;
+  }
+
+  function buildProse(deck, onDrill) {
+    var frag = document.createDocumentFragment();
+
+    var intro = el('section', 'prose-intro');
+    intro.appendChild(el('h3', 'prose-label', 'The question'));
+    intro.appendChild(el('p', 'prose-question', deck.question));
+    frag.appendChild(intro);
+
+    // The deepest card carries the full path down, so the ladder is shown once
+    // here rather than repeated under every step.
+    var deepest = deck.cards.reduce(function (best, c) {
+      return (c.chain && c.chain.length > (best && best.chain ? best.chain.length : 0)) ? c : best;
+    }, null);
+
+    if (deepest && deepest.chain.length) {
+      var chainWrap = el('section', 'prose-chain-wrap');
+      chainWrap.appendChild(buildChain(deepest.chain, deepest.tag, onDrill));
+      frag.appendChild(chainWrap);
+    }
+
+    var steps = el('section', 'prose-steps');
+    deck.cards.forEach(function (card) {
+      steps.appendChild(proseBlock(card, onDrill));
+    });
+    frag.appendChild(steps);
+
+    return frag;
+  }
+
+  function deckToText(deck) {
+    var lines = [deck.topic, deck.question, ''];
+    deck.cards.forEach(function (c) {
+      lines.push('— ' + phaseText(c) + (c.tag ? '  [' + c.tag + ']' : ''));
+      lines.push(c.title);
+      if (c.principle) lines.push(c.principle);
+      if (c.chain && c.chain.length) lines.push('Chain: ' + c.chain.join(' -> '));
+      if (c.discarded && c.discarded.length) lines.push('Discarded: ' + c.discarded.join('; '));
+      if (c.explanation) lines.push(c.explanation);
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  /* ── deck modal ────────────────────────────────────────────────────── */
+
+  function openDeck(deck, startIndex) {
     if (activeModalClose) activeModalClose();
-    var activeIndex = 0;
-    var animating = false;
 
-    var modal = document.createElement('div');
-    modal.className = 'flashcard-modal';
+    var total = deck.cards.length;
+    var index = Math.min(Math.max(parseInt(startIndex, 10) || 0, 0), total - 1);
+    var maxLevel = deck.cards.reduce(function (m, c) { return Math.max(m, c.level); }, 1) || 1;
+    var busy = false;
+    var view = 'cards';
+
+    function drill(focus) {
+      close();
+      sendMessage('Decompose this further: ' + focus.principle, focus);
+    }
+
+    var modal = el('div', 'flashcard-modal');
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
-    document.body.classList.add('modal-open');
-    document.body.appendChild(modal);
+    modal.setAttribute('aria-label', 'Deck: ' + deck.topic);
 
-    var touchStartX = 0;
+    var backdrop = el('div', 'card-backdrop');
+    backdrop.dataset.close = 'true';
 
-    function draw() {
-      modal.innerHTML = [
-        '<div class="card-backdrop" data-close="true"></div>',
-        '<div class="card-dialog" data-dialog="1">',
-        '<button type="button" class="card-x" data-close="true" aria-label="Close flashcards">&times;</button>',
-        flashcardDeckHtml(deck, activeIndex),
-        '</div>',
-      ].join('');
-      var dialog = modal.querySelector('[data-dialog]');
-      if (dialog) {
-        dialog.addEventListener('touchstart', function (e) {
-          touchStartX = e.changedTouches[0].screenX;
-        }, { passive: true });
-        dialog.addEventListener('touchend', function (e) {
-          var dx = e.changedTouches[0].screenX - touchStartX;
-          if (!animating && Math.abs(dx) > 50) {
-            move(dx < 0 ? 1 : -1);
-          }
-        }, { passive: true });
+    var dialog = el('div', 'card-dialog');
+
+    var closeBtn = el('button', 'card-x');
+    closeBtn.type = 'button';
+    closeBtn.dataset.close = 'true';
+    closeBtn.setAttribute('aria-label', 'Close deck');
+    closeBtn.textContent = '×';
+
+    var header = el('header', 'deck-header');
+    header.appendChild(el('p', 'deck-topic', deck.topic));
+    if (deck.question) header.appendChild(el('p', 'deck-question', deck.question));
+
+    /* view switch */
+    var tabs = el('div', 'view-tabs');
+    tabs.setAttribute('role', 'tablist');
+    var cardsTab = el('button', 'view-tab active', 'Cards');
+    var proseTab = el('button', 'view-tab', 'Full reasoning');
+    [cardsTab, proseTab].forEach(function (t) {
+      t.type = 'button';
+      t.setAttribute('role', 'tab');
+    });
+    tabs.append(cardsTab, proseTab);
+
+    /* cards view */
+    var stack = el('div', 'stack');
+    var peek2 = el('div', 'peek peek-2');
+    var peek1 = el('div', 'peek peek-1');
+    var face = el('article', 'card-face');
+    face.setAttribute('aria-live', 'polite');
+    stack.append(peek2, peek1, face);
+
+    var controls = el('div', 'deck-controls');
+    var prevBtn = el('button', 'nav-btn nav-prev');
+    prevBtn.type = 'button';
+    prevBtn.setAttribute('aria-label', 'Previous card');
+    prevBtn.appendChild(svg(ICON.prev, 16, 2.5));
+
+    var rail = el('div', 'depth-rail');
+    rail.setAttribute('role', 'tablist');
+    rail.setAttribute('aria-label', 'Cards');
+
+    var dots = deck.cards.map(function (card, i) {
+      var dot = el('button', 'depth-dot phase-' + card.phase);
+      dot.type = 'button';
+      dot.dataset.index = i;
+      dot.setAttribute('role', 'tab');
+      dot.setAttribute('aria-label', 'Card ' + (i + 1) + ' of ' + total + ': ' + card.title);
+      dot.style.setProperty('--depth', card.level / maxLevel);
+      rail.appendChild(dot);
+      return dot;
+    });
+
+    var nextBtn = el('button', 'nav-btn nav-next');
+    nextBtn.type = 'button';
+    controls.append(prevBtn, rail, nextBtn);
+
+    var railCaption = el('p', 'rail-caption');
+    railCaption.appendChild(el('span', null, 'surface'));
+    railCaption.appendChild(el('span', 'rail-caption-mid', 'bedrock'));
+    railCaption.appendChild(el('span', null, 'rebuilt'));
+
+    var cardsView = el('div', 'view view-cards');
+    cardsView.append(stack, controls, railCaption);
+
+    /* prose view */
+    var proseView = el('div', 'view view-prose hidden');
+
+    /* ask bar */
+    var askForm = el('form', 'ask-bar');
+    var askInput = el('input', 'ask-input');
+    askInput.type = 'text';
+    askInput.placeholder = 'Ask about this card...';
+    askInput.setAttribute('aria-label', 'Ask a question about this card');
+    var askBtn = el('button', 'ask-send');
+    askBtn.type = 'submit';
+    askBtn.setAttribute('aria-label', 'Ask');
+    askBtn.appendChild(svg(ICON.send, 15));
+    askForm.append(askInput, askBtn);
+
+    askForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var q = askInput.value.trim();
+      if (!q) return;
+      var card = deck.cards[index];
+      close();
+      sendMessage(q, { title: card.title, principle: card.principle, chain: card.chain || [] });
+    });
+
+    dialog.append(closeBtn, header, tabs, cardsView, proseView, askForm);
+    modal.append(backdrop, dialog);
+
+    function setView(next) {
+      view = next;
+      var isCards = view === 'cards';
+      cardsTab.classList.toggle('active', isCards);
+      proseTab.classList.toggle('active', !isCards);
+      cardsTab.setAttribute('aria-selected', isCards ? 'true' : 'false');
+      proseTab.setAttribute('aria-selected', isCards ? 'false' : 'true');
+      cardsView.classList.toggle('hidden', !isCards);
+      proseView.classList.toggle('hidden', isCards);
+      askInput.placeholder = isCards ? 'Ask about this card...' : 'Ask about this reasoning...';
+      if (!isCards && !proseView.childElementCount) {
+        proseView.replaceChildren(buildProse(deck, drill));
       }
-      var card = modal.querySelector('.phys-card');
-      if (card) {
-        card.addEventListener('click', function (e) {
-          if (e.target.closest('.s-btn') || e.target.closest('.s-dot') || e.target.closest('.card-x') || e.target.dataset.close) return;
-          if (!animating) move(1);
-        });
-      }
-      requestAnimationFrame(function () {
-        var c = modal.querySelector('.phys-card');
-        if (c) c.classList.add('in');
+      updateScrollHint();
+    }
+
+    cardsTab.addEventListener('click', function () { setView('cards'); });
+    proseTab.addEventListener('click', function () { setView('prose'); });
+
+    function updateScrollHint() {
+      var target = view === 'cards' ? face : proseView;
+      stack.classList.toggle('has-more',
+        view === 'cards' && face.scrollHeight - face.scrollTop - face.clientHeight > 8);
+      if (target) { /* prose scrolls in its own container, no hint needed */ }
+    }
+
+    face.addEventListener('scroll', updateScrollHint, { passive: true });
+    window.addEventListener('resize', updateScrollHint);
+
+    function paint() {
+      var card = deck.cards[index];
+      face.replaceChildren(buildCardFace(deck, index, drill));
+      face.dataset.phase = card.phase;
+      face.scrollTop = 0;
+      updateScrollHint();
+
+      prevBtn.disabled = index === 0;
+      var isLast = index === total - 1;
+      nextBtn.replaceChildren(svg(isLast ? ICON.restart : ICON.next, 16, isLast ? 2 : 2.5));
+      nextBtn.setAttribute('aria-label', isLast ? 'Back to first card' : 'Next card');
+
+      dots.forEach(function (dot, i) {
+        dot.classList.toggle('active', i === index);
+        dot.classList.toggle('seen', i < index);
+        dot.setAttribute('aria-selected', i === index ? 'true' : 'false');
       });
+
+      var remaining = total - index - 1;
+      peek1.classList.toggle('hidden', remaining < 1);
+      peek2.classList.toggle('hidden', remaining < 2);
+    }
+
+    function goTo(next, direction) {
+      if (busy || next === index) return;
+      var dir = direction || (next > index ? 1 : -1);
+
+      if (reduceMotion.matches) { index = next; paint(); return; }
+
+      busy = true;
+      face.classList.remove('enter', 'enter-from-right', 'enter-from-left');
+      face.classList.add(dir > 0 ? 'exit-left' : 'exit-right');
+
+      var done = false;
+      var timer = null;
+
+      var finish = function (e) {
+        if (done || (e && e.target !== face)) return;
+        done = true;
+        clearTimeout(timer);
+        face.removeEventListener('transitionend', finish);
+        face.classList.remove('exit-left', 'exit-right');
+        index = next;
+        paint();
+
+        // Unlock synchronously. Anything that waits on rAF can be throttled
+        // (background tab, dropped frame) and would leave the deck stuck
+        // ignoring every keypress and swipe from then on.
+        busy = false;
+
+        face.classList.add('enter-from-' + (dir > 0 ? 'right' : 'left'));
+        requestAnimationFrame(function () {
+          face.classList.remove('enter-from-right', 'enter-from-left');
+          face.classList.add('enter');
+        });
+      };
+
+      face.addEventListener('transitionend', finish);
+      timer = setTimeout(finish, 260);
+    }
+
+    function step(dir) {
+      if (view !== 'cards') return;
+      if (dir > 0) goTo(index === total - 1 ? 0 : index + 1, 1);
+      else if (index > 0) goTo(index - 1, -1);
     }
 
     function close() {
       modal.remove();
       document.body.classList.remove('modal-open');
-      document.removeEventListener('keydown', onKeydown);
+      document.removeEventListener('keydown', onKeydown, true);
+      window.removeEventListener('resize', updateScrollHint);
       activeModalClose = null;
     }
 
-    function onKeydown(e) {
-      if (e.key === 'Escape') close();
-      if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); if (!animating) move(1); }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); if (!animating) move(-1); }
+    function focusables() {
+      return Array.prototype.filter.call(
+        dialog.querySelectorAll('button:not(:disabled), input'),
+        function (node) { return node.offsetParent !== null; }
+      );
     }
 
-    function move(dir) {
-      if (animating) return;
-      var total = deck.cards.length;
-      if (dir < 0) {
-        if (activeIndex === 0) return;
-        activeIndex -= 1;
-      } else {
-        if (activeIndex === total - 1) { activeIndex = 0; }
-        else { activeIndex += 1; }
+    function onKeydown(e) {
+      // Never hijack arrows/space while the reader is typing a question.
+      var typing = document.activeElement === askInput;
+
+      if (e.key === 'Escape') { e.preventDefault(); close(); return; }
+      if (!typing) {
+        if (e.key === 'ArrowRight') { e.preventDefault(); step(1); return; }
+        if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); return; }
+        if (e.key === 'Home') { e.preventDefault(); goTo(0, -1); return; }
+        if (e.key === 'End') { e.preventDefault(); goTo(total - 1, 1); return; }
       }
-      animating = true;
-      var cardEl = modal.querySelector('.phys-card');
-      if (cardEl) {
-        cardEl.classList.remove('in');
-        cardEl.style.transition = 'transform 0.2s ease, opacity 0.2s ease';
-        cardEl.style.transform = dir < 0 ? 'translateX(-40px)' : 'translateX(40px)';
-        cardEl.style.opacity = '0';
+      if (e.key !== 'Tab') return;
+
+      var items = focusables();
+      if (!items.length) return;
+      var first = items[0];
+      var last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault(); last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault(); first.focus();
+      } else if (!dialog.contains(document.activeElement)) {
+        e.preventDefault(); first.focus();
       }
-      setTimeout(function () {
-        draw();
-        animating = false;
-      }, 220);
     }
+
+    prevBtn.addEventListener('click', function () { step(-1); });
+    nextBtn.addEventListener('click', function () { step(1); });
+
+    rail.addEventListener('click', function (e) {
+      var dot = e.target.closest('.depth-dot');
+      if (dot) goTo(parseInt(dot.dataset.index, 10));
+    });
 
     modal.addEventListener('click', function (e) {
-      var dot = e.target.closest('.s-dot');
-      if (dot) {
-        var i = parseInt(dot.dataset.i);
-        if (!isNaN(i) && i !== activeIndex && !animating) {
-          activeIndex = i;
-          animating = true;
-          draw();
-          animating = false;
-        }
-        return;
-      }
-      if (e.target.closest('.s-prev')) { e.preventDefault(); if (!animating) move(-1); return; }
-      if (e.target.closest('.s-next')) { e.preventDefault(); if (!animating) move(1); return; }
-      if (e.target.closest('.card-x') || e.target.dataset.close === 'true') { close(); }
+      if (e.target.dataset && e.target.dataset.close === 'true') close();
     });
 
+    face.addEventListener('click', function (e) {
+      if (e.target.closest('a, button, input')) return;
+      step(1);
+    });
+
+    var touchX = 0, touchY = 0;
+    dialog.addEventListener('touchstart', function (e) {
+      touchX = e.changedTouches[0].screenX;
+      touchY = e.changedTouches[0].screenY;
+    }, { passive: true });
+    dialog.addEventListener('touchend', function (e) {
+      var dx = e.changedTouches[0].screenX - touchX;
+      var dy = e.changedTouches[0].screenY - touchY;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) step(dx < 0 ? 1 : -1);
+    }, { passive: true });
+
+    document.body.classList.add('modal-open');
+    document.body.appendChild(modal);
+    document.addEventListener('keydown', onKeydown, true);
+
+    paint();
+    face.classList.add('enter');
+    nextBtn.focus();
     activeModalClose = close;
-    document.addEventListener('keydown', onKeydown);
-    draw();
   }
 
-  function renderFlashcardDeck(msgEl, content) {
-    var deck;
-    try {
-      deck = parseFlashcardDeck(content);
-    } catch (err) {
-      msgEl.classList.add('flashcard-fallback');
-      updateBotMessage(msgEl, content);
-      return;
+  /* ── transcript ────────────────────────────────────────────────────── */
+
+  function addUserMessage(text) {
+    var welcome = document.querySelector('.welcome');
+    if (welcome) welcome.remove();
+
+    var block = el('div', 'thread-q');
+    block.appendChild(el('p', 'thread-q-text', text));
+    messagesEl.appendChild(block);
+    scrollToBottom();
+    return block;
+  }
+
+  function addPendingDeck() {
+    var block = el('div', 'answer is-pending');
+    block.appendChild(el('div', 'answer-skeleton'));
+    messagesEl.appendChild(block);
+    scrollToBottom();
+    return block;
+  }
+
+  /* The transcript shows the ANSWER, not a teaser. The chain is visible at a
+     glance and the bedrock — the thing the whole deck exists to reach — is
+     stated outright. The modal is for reading in depth, not for finding out
+     what the deck said. */
+  function renderDeck(block, deck) {
+    block.classList.remove('is-pending');
+    block.replaceChildren();
+
+    var depth = deck.cards.reduce(function (m, c) { return Math.max(m, c.level); }, 0);
+    var maxLevel = depth || 1;
+
+    var head = el('div', 'answer-head');
+    head.appendChild(el('span', 'answer-topic', deck.topic));
+    head.appendChild(el('span', 'answer-meta', deck.cards.length + ' cards · ' + depth + ' levels deep'));
+    block.appendChild(head);
+
+    if (deck.question) block.appendChild(el('p', 'answer-question', deck.question));
+
+    /* chain at a glance — each tick is the card's tag at the card's depth */
+    var rail = el('div', 'answer-rail');
+    deck.cards.forEach(function (card, i) {
+      var tick = el('button', 'rail-tick phase-' + card.phase + (card.tag ? ' tag-' + card.tag.toLowerCase() : ''));
+      tick.type = 'button';
+      tick.style.setProperty('--depth', card.level / maxLevel);
+      tick.title = phaseText(card) + (card.tag ? ' · ' + card.tag : '') + ' — ' + card.title;
+      tick.setAttribute('aria-label', 'Open card ' + (i + 1) + ': ' + card.title);
+      tick.appendChild(el('span', 'rail-glyph', card.tag && TAG_META[card.tag] ? TAG_META[card.tag].glyph : '·'));
+      tick.addEventListener('click', function () { openDeck(deck, i); });
+      rail.appendChild(tick);
+    });
+    block.appendChild(rail);
+
+    /* Lay the caption on the same column grid as the ticks so "bedrock" sits
+       under the actual bedrock tick instead of floating at the midpoint. */
+    var bedIndex = deck.cards.findIndex(function (c) { return c.phase === 'bedrock'; });
+    var caption = el('p', 'answer-rail-caption');
+    caption.style.gridTemplateColumns = 'repeat(' + deck.cards.length + ', 1fr)';
+
+    var surface = el('span', 'cap-start', 'surface');
+    caption.appendChild(surface);
+
+    if (bedIndex > 0 && bedIndex < deck.cards.length - 1) {
+      var mid = el('span', 'cap-mid', 'bedrock');
+      mid.style.gridColumn = String(bedIndex + 1);
+      caption.appendChild(mid);
     }
 
-    var inner = msgEl.querySelector('.message-content');
-    msgEl.classList.add('flashcard-mode');
-    var total = deck.cards.length;
-    var firstTitle = escapeHtml(safeText(deck.cards[0] ? deck.cards[0].title : '', ''));
-    var topic = escapeHtml(deck.topic);
-    var stackHtml = '<div class="preview-stack">';
-    for (var i = Math.min(total, 3); i >= 1; i--) {
-      var tilt = (i - 1) * 2.5;
-      var leftOff = (i - 1) * 4;
-      var bottomOff = (i - 1) * 4;
-      var z = i + 1;
-      var scale = 1 - (total - i) * 0.015;
-      stackHtml += '<div class="preview-card pc-' + i + '" style="z-index:' + z + ';transform:rotate(' + (-tilt) + 'deg) translateX(' + leftOff + 'px) translateY(' + (-bottomOff) + 'px) scale(' + scale + ')"></div>';
+    var end = el('span', 'cap-end', 'rebuilt');
+    end.style.gridColumn = String(deck.cards.length);
+    caption.appendChild(end);
+
+    block.appendChild(caption);
+
+    /* the payoff: what it actually bottomed out on */
+    var bed = deck.cards.filter(function (c) { return c.phase === 'bedrock'; })[0];
+    if (bed && bed.principle) {
+      var payoff = el('div', 'answer-bedrock');
+      var bedHead = el('div', 'answer-bedrock-head');
+      bedHead.appendChild(el('span', 'answer-bedrock-label', 'Bottoms out at'));
+      var chip = buildTagChip(bed.tag, true);
+      if (chip) bedHead.appendChild(chip);
+      payoff.appendChild(bedHead);
+      payoff.appendChild(el('p', 'answer-bedrock-text', bed.principle));
+      block.appendChild(payoff);
     }
-    stackHtml += '</div>';
-    inner.innerHTML = [
-      '<button type="button" class="mini-deck">',
-      stackHtml,
-      '<div class="mini-deck-body">',
-      '<span class="mini-label">' + total + ' cards</span>',
-      '<strong class="mini-topic">' + topic + '</strong>',
-      '<span class="mini-sub">' + firstTitle + '</span>',
-      '</div>',
-      '</button>',
-    ].join('');
-    inner.querySelector('.mini-deck').addEventListener('click', function () {
-      openFlashcardModal(deck);
+
+    var actions = el('div', 'answer-actions');
+    var open = el('button', 'open-deck');
+    open.type = 'button';
+    open.appendChild(el('span', null, 'Walk the ' + deck.cards.length + ' cards'));
+    open.appendChild(el('span', 'open-deck-arrow', '→'));
+    open.addEventListener('click', function () { openDeck(deck, 0); });
+
+    var copyBtn = el('button', 'icon-action');
+    copyBtn.type = 'button';
+    copyBtn.setAttribute('aria-label', 'Copy the full reasoning');
+    copyBtn.appendChild(svg(ICON.copy, 14));
+    copyBtn.addEventListener('click', function () {
+      navigator.clipboard.writeText(deckToText(deck)).then(function () {
+        copyBtn.replaceChildren(svg(ICON.check, 14));
+        copyBtn.classList.add('copied');
+        setTimeout(function () {
+          copyBtn.replaceChildren(svg(ICON.copy, 14));
+          copyBtn.classList.remove('copied');
+        }, 1500);
+      });
     });
+
+    actions.append(open, copyBtn);
+    block.appendChild(actions);
+
+    if (deck.followups && deck.followups.length) {
+      var wrap = el('div', 'followups');
+      wrap.appendChild(el('span', 'followups-label', 'Where this leads'));
+      var row = el('div', 'followups-row');
+      deck.followups.forEach(function (q) {
+        var chip2 = el('button', 'followup-chip');
+        chip2.type = 'button';
+        chip2.appendChild(el('span', 'followup-arrow', '→'));
+        chip2.appendChild(el('span', null, q));
+        chip2.addEventListener('click', function () { sendMessage(q); });
+        row.appendChild(chip2);
+      });
+      wrap.appendChild(row);
+      block.after(wrap);
+      state.followupsEl = wrap;
+    }
+
     scrollToBottom();
   }
 
+  function addRegenerateButton(deckEl) {
+    if (state.regenBar) state.regenBar.remove();
+
+    var bar = el('div', 'regenerate-bar');
+    var btn = el('button', 'regenerate-btn');
+    btn.type = 'button';
+    btn.appendChild(svg(ICON.restart, 14));
+    btn.appendChild(el('span', null, 'Regenerate'));
+
+    btn.addEventListener('click', function () {
+      if (state.isWaiting || !state.lastQuestion) return;
+      if (state.lastDeckEl) state.lastDeckEl.remove();
+      if (state.followupsEl) { state.followupsEl.remove(); state.followupsEl = null; }
+      bar.remove();
+      state.lastDeckEl = null;
+      state.regenBar = null;
+      state.history.pop();   // drop the assistant turn we just removed
+      state.history.pop();   // drop the user turn; sendMessage re-adds it
+      sendMessage(state.lastQuestion, state.lastFocus);
+    });
+
+    bar.appendChild(btn);
+    (state.followupsEl || deckEl).after(bar);
+    state.regenBar = bar;
+    state.lastDeckEl = deckEl;
+  }
+
+  function deckSummary(deck) {
+    var lines = ['Deck: ' + deck.topic, deck.question];
+    deck.cards.forEach(function (c, i) {
+      lines.push((i + 1) + '. [' + (c.tag || c.phase) + '] ' + c.title + ' — ' + c.principle);
+    });
+    return lines.join('\n');
+  }
+
+  /* ── send ──────────────────────────────────────────────────────────── */
+
   function showTyping() {
-    var label = typingEl.querySelector('.typing-label');
-    if (label) {
-      label.textContent = state.flashcardMode ? 'Generating flashcards...' : 'Thinking from first principles...';
-    }
     typingEl.classList.remove('hidden');
     scrollToBottom();
   }
@@ -422,96 +868,63 @@
     typingEl.classList.add('hidden');
   }
 
-  async function sendMessage(text) {
-    if (state.isWaiting) return;
-    if (!text.trim()) return;
+  async function sendMessage(text, focus) {
+    if (state.isWaiting || !text.trim()) return;
 
-    state.lastUserMessage = text;
+    if (state.followupsEl) { state.followupsEl.remove(); state.followupsEl = null; }
+    if (state.regenBar) { state.regenBar.remove(); state.regenBar = null; }
+
+    state.lastQuestion = text;
+    state.lastFocus = focus || null;
     state.isWaiting = true;
     sendBtn.disabled = true;
     inputEl.disabled = true;
     hideToast();
 
-    addMessage('user', text);
+    addUserMessage(text);
     state.history.push({ role: 'user', content: text });
 
-    var botMsgEl = addMessage('bot', '_Thinking..._');
+    var deckEl = addPendingDeck();
     showTyping();
-
-    var fullContent = '';
 
     try {
       state.abortController = new AbortController();
 
+      var body = { message: text, history: state.history.slice(0, -1) };
+      if (focus) body.focus = focus;
+
       var response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: text,
-          history: state.history,
-          mode: state.flashcardMode ? 'flashcard' : 'text',
-        }),
+        body: JSON.stringify(body),
         signal: state.abortController.signal,
       });
 
       if (!response.ok) {
-        var errData;
-        try { errData = await response.json(); } catch (e) {}
-        var detail = errData ? errData.detail : 'Request failed with status ' + response.status;
-        if (detail && detail.includes('API key')) {
-          showToast('API key not configured. Set OPENROUTER_API_KEY in .env', {
-            label: 'Fix',
-            cb: function () {
-              state.history.push({ role: 'assistant', content: '(attempted retry)' });
-              sendMessage(state.lastUserMessage);
-            },
-          });
-        } else {
-          showToast(detail, {
-            label: 'Retry',
-            cb: function () { sendMessage(state.lastUserMessage); },
-          });
-        }
+        var detail = 'Request failed with status ' + response.status;
+        try {
+          var errData = await response.json();
+          if (errData && errData.detail) detail = JSON.stringify(errData.detail);
+        } catch (e) { /* non-JSON error body */ }
+        showToast(detail, { label: 'Retry', cb: function () { sendMessage(text, focus); } });
         throw new Error(detail);
       }
 
-      var reader = response.body.getReader();
-      var decoder = new TextDecoder();
-
-      while (true) {
-        var result = await reader.read();
-        if (result.done) break;
-
-        var chunk = decoder.decode(result.value, { stream: true });
-        fullContent += chunk;
-
-        if (fullContent.trim()) {
-          updateBotMessage(botMsgEl, fullContent);
-        }
-      }
-
-      if (!fullContent.trim()) {
-        var emptyMsg = '_The bot returned an empty response. Try rephrasing your question._';
-        updateBotMessage(botMsgEl, emptyMsg);
-        showToast('Empty response from model', {
-          label: 'Retry',
-          cb: function () { sendMessage(state.lastUserMessage); },
-        });
-      } else if (state.flashcardMode) {
-        renderFlashcardDeck(botMsgEl, fullContent);
-      }
-
-      state.history.push({ role: 'assistant', content: fullContent || '(empty response)' });
-      addRegenerateButton();
+      var deck = await response.json();
+      renderDeck(deckEl, deck);
+      state.history.push({ role: 'assistant', content: deckSummary(deck) });
+      addRegenerateButton(deckEl);
     } catch (err) {
+      state.history.pop();   // no assistant turn was recorded
       if (err.name === 'AbortError') {
-        updateBotMessage(botMsgEl, '_\u200b_');
+        deckEl.remove();
         return;
       }
-      updateBotMessage(botMsgEl, '**Error:** ' + (err.message || 'Something went wrong.') + '\n\n_Try again._');
+      deckEl.classList.remove('is-pending');
+      deckEl.replaceChildren(el('p', 'deck-error', err.message || 'Something went wrong.'));
     } finally {
       state.isWaiting = false;
-      sendBtn.disabled = false;
+      sendBtn.disabled = !inputEl.value.trim();
       inputEl.disabled = false;
       inputEl.focus();
       hideTyping();
@@ -519,76 +932,34 @@
     }
   }
 
-  function handleInput() {
-    var val = inputEl.value.trim();
-    sendBtn.disabled = !val || state.isWaiting;
+  /* ── input ─────────────────────────────────────────────────────────── */
 
+  function handleInput() {
+    sendBtn.disabled = !inputEl.value.trim() || state.isWaiting;
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
   }
 
-  inputEl.addEventListener('input', handleInput);
-
-  inputEl.addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (inputEl.value.trim() && !state.isWaiting) {
-        var text = inputEl.value.trim();
-        inputEl.value = '';
-        inputEl.style.height = 'auto';
-        sendBtn.disabled = true;
-        sendMessage(text);
-      }
-    }
-  });
-
-  form.addEventListener('submit', function (e) {
-    e.preventDefault();
-  });
-
-  sendBtn.addEventListener('click', function () {
+  function submit() {
     var text = inputEl.value.trim();
-    if (text && !state.isWaiting) {
-      inputEl.value = '';
-      inputEl.style.height = 'auto';
-      sendBtn.disabled = true;
-      sendMessage(text);
-    }
-  });
+    if (!text || state.isWaiting) return;
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+    sendBtn.disabled = true;
+    sendMessage(text);
+  }
 
-  document.addEventListener('click', function (e) {
+  inputEl.addEventListener('input', handleInput);
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); }
+  });
+  form.addEventListener('submit', function (e) { e.preventDefault(); submit(); });
+
+  messagesEl.addEventListener('click', function (e) {
     var chip = e.target.closest('.suggestion-chip');
-    if (chip) {
-      var prompt = chip.getAttribute('data-prompt');
-      if (prompt) {
-        inputEl.value = prompt;
-        handleInput();
-        sendMessage(prompt);
-      }
-    }
+    if (chip && chip.dataset.prompt) sendMessage(chip.dataset.prompt);
   });
 
-  function setMode(mode) {
-    state.flashcardMode = mode === 'flashcard';
-    modeOptions.forEach(function (el) {
-      el.classList.toggle('active', el.dataset.mode === mode);
-    });
-    var badge = document.getElementById('mode-badge');
-    if (badge) {
-      badge.classList.toggle('hidden', mode !== 'flashcard');
-    }
-  }
-
-  modeOptions.forEach(function (el) {
-    el.addEventListener('click', function () {
-      setMode(el.dataset.mode);
-    });
-  });
-
-  function init() {
-    handleInput();
-    setMode('text');
-  }
-
-  init();
+  renderSuggestions();
+  handleInput();
 })();
