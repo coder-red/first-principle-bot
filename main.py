@@ -343,7 +343,9 @@ Produce 6 or 7 cards in this order:
 
 1. ONE card with phase "question", level 0. It states the precise question and the surface belief most people start from. Tag it CONVENTION or ASSUMPTION — the starting point is almost never a first principle. "discarded" lists the beliefs you are about to strip away.
 
-2. THREE OR MORE cards with phase "descent", level 1, 2, 3 (increasing, one per card). Each answers "what is THIS made of / based on?" about the previous card. Each goes strictly deeper. Tag each honestly. "chain" holds the path from level 1 down to this card's level, one string per level, deepest last.
+2. THREE OR MORE cards with phase "descent", level 1, 2, 3 (increasing, one per card). Each answers "what is THIS made of / based on?" about the previous card. Each goes strictly deeper. Tag each honestly.
+
+   "chain" holds the path from the surface down to this card. Build it cumulatively: a descent card's chain must repeat the previous card's chain ENTRY FOR ENTRY, in the same order, and then append exactly one new rung. Never drop, reword or reorder an earlier rung. The bedrock card's chain repeats the deepest descent card's chain and appends its own rung. So the chains grow 2, 3, 4, 5 entries as the deck descends.
 
 3. ONE card with phase "bedrock", level = the deepest level reached. This is where decomposition stops. Tag MUST be ATOMIC, or UNKNOWN if you genuinely cannot reduce further and will not fabricate.
 
@@ -360,7 +362,7 @@ End with 2-3 "followups": short, genuinely curious questions this deck opens up.
 3. The bedrock card must be genuinely irreducible. Do not stop at a convention and call it ATOMIC.
 4. Rebuild cards may use ONLY ATOMIC and VERIFIED material.
 5. If you don't know something, say "I don't know" in that card and tag it UNKNOWN. Never fabricate.
-6. "chain" strings are short — under 60 characters each. They render as a ladder, not as prose.
+6. "chain" strings are short — under 60 characters each. They render as a ladder, not as prose. Once a rung is written, later cards must repeat it verbatim.
 7. A curious 16-year-old must be able to follow every card."""
 
 

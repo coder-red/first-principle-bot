@@ -56,6 +56,21 @@ A violation triggers one repair call quoting the exact rule broken. If the deck
 still fails, it renders with a **Chain not verified** banner listing what broke,
 rather than passing itself off as sound.
 
+### Testing yourself
+
+A third tab tests whether you can **do the method**, not whether you remember
+the deck. It shows a claim and asks which epistemic tag it carries — telling a
+physical necessity from a human convention is the one transferable skill in any
+deck. Questions are derived from the deck JSON, so it costs no extra model call.
+
+There is no score and there are no streaks; answering reveals the reasoning. The
+summary says how many claims you *matched the deck on*, not how many you got
+"right" — the tags are the model's judgement, not settled fact, and disagreeing
+can be the correct call.
+
+The quiz refuses to run on a deck that failed validation. Testing yourself
+against tags that broke their own rules would actively teach the wrong thing.
+
 ### Following the thread
 
 Three ways to keep going, all of which post to the same endpoint:
@@ -66,6 +81,11 @@ Three ways to keep going, all of which post to the same endpoint:
   starting a fresh turn that has lost the thread.
 - **Follow-ups** — each deck ends with two or three genuinely curious questions
   it opened up, generated in the same call at no extra cost.
+
+Drilling shows a breadcrumb of the claims you descended through, so a run of
+drill-downs reads as one exploration rather than a pile of unrelated decks. The
+thread is kept in `localStorage` and restored on reload; **New thread** clears
+it.
 
 ## Setup
 
