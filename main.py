@@ -100,6 +100,106 @@ def _tag(value) -> str:
     return candidate if candidate in TAGS else ""
 
 
+MIN_DESCENT_CARDS = 3
+
+# Sound material for a reconstruction: a rebuild step may lean on a convention
+# only if it says so, but never on a bare assumption or an unknown.
+UNSOUND_FOR_REBUILD = ("ASSUMPTION", "UNKNOWN")
+
+
+def validate_chain(cards: List[dict]) -> tuple:
+    """Check the decomposition contract, not just the JSON shape.
+
+    normalize_deck guarantees every field has the right type. That is not the
+    same as the reasoning being sound: a deck can be perfectly well-formed and
+    still tag a descent card ATOMIC, or stop at a bedrock no deeper than the
+    step that reached it. This app's whole claim is rigour, so a chain that
+    breaks its own rules must not render as though it passed.
+
+    Returns (hard, soft). Hard violations are contradictions worth spending a
+    repair call on; soft ones are worth showing but not worth re-asking for.
+    """
+    by_phase = {phase: [c for c in cards if c["phase"] == phase] for phase in PHASES}
+    descent = by_phase["descent"]
+    bedrock = by_phase["bedrock"]
+
+    hard, soft = [], []
+
+    if len(bedrock) != 1:
+        hard.append(
+            "There must be exactly one bedrock card; this deck has %d." % len(bedrock)
+        )
+
+    if len(descent) < MIN_DESCENT_CARDS:
+        hard.append(
+            "The descent must be at least %d cards deep; this deck has %d."
+            % (MIN_DESCENT_CARDS, len(descent))
+        )
+
+    levels = [c["level"] for c in descent]
+    if levels and levels[0] != 1:
+        hard.append("The descent must start at level 1; this one starts at %d." % levels[0])
+    if any(b <= a for a, b in zip(levels, levels[1:])):
+        hard.append(
+            "Each descent card must go strictly deeper than the one before it; "
+            "the levels run %s." % (levels,)
+        )
+
+    for card in descent:
+        if card["tag"] == "ATOMIC":
+            hard.append(
+                'Descent card "%s" is tagged ATOMIC. If a claim is irreducible the '
+                "decomposition stops there and that card is the bedrock." % card["title"]
+            )
+
+    if len(bedrock) == 1:
+        bed = bedrock[0]
+        deepest = max(levels) if levels else 0
+        if bed["level"] <= deepest:
+            hard.append(
+                'The bedrock "%s" sits at level %d, no deeper than the descent that '
+                "reached it (level %d). Bedrock must lie below the last descent step."
+                % (bed["title"], bed["level"], deepest)
+            )
+        if bed["tag"] not in ("ATOMIC", "UNKNOWN"):
+            hard.append(
+                'The bedrock "%s" is tagged %s. Bedrock must be ATOMIC, or UNKNOWN if '
+                "it genuinely cannot be reduced without fabricating."
+                % (bed["title"], bed["tag"] or "nothing")
+            )
+        if not bed["chain"]:
+            soft.append("The bedrock card shows no chain, so the path to it is not visible.")
+
+    for card in by_phase["rebuild"]:
+        if card["tag"] in UNSOUND_FOR_REBUILD:
+            soft.append(
+                'Rebuild card "%s" is tagged %s. A reconstruction should stand on '
+                "ATOMIC or VERIFIED material." % (card["title"], card["tag"])
+            )
+
+    for card in by_phase["question"]:
+        if card["tag"] in ("ATOMIC", "VERIFIED"):
+            soft.append(
+                'The starting point "%s" is tagged %s. The belief a reader starts from '
+                "is rarely already a first principle." % (card["title"], card["tag"])
+            )
+
+    if not by_phase["insight"]:
+        soft.append("The deck never states what the decomposition revealed.")
+
+    # Each descent card should carry the path that produced it, so the chain
+    # deepens rather than restarting.
+    for previous, current in zip(descent, descent[1:]):
+        if previous["chain"] and current["chain"]:
+            if current["chain"][:len(previous["chain"])] != previous["chain"]:
+                soft.append(
+                    'The chain on "%s" does not extend the chain on "%s".'
+                    % (current["title"], previous["title"])
+                )
+
+    return hard, soft
+
+
 def normalize_deck(data: dict) -> dict:
     """Coerce raw model output into the exact shape the client renders.
 
@@ -143,11 +243,15 @@ def normalize_deck(data: dict) -> dict:
     if not cards:
         raise ValueError("Deck contained no usable cards.")
 
+    hard, soft = validate_chain(cards)
+
     return {
         "topic": _text(data.get("topic"), "Flashcards"),
         "question": _text(data.get("question"), cards[0]["question"]),
         "cards": cards,
         "followups": _text_list(data.get("followups"), limit=3),
+        "verified": not hard,
+        "issues": hard + soft,
     }
 
 
@@ -171,6 +275,8 @@ def make_error_deck(topic: str, error: str) -> dict:
             },
         ],
         "followups": [],
+        "verified": False,
+        "issues": [],
     }
 
 
@@ -313,6 +419,43 @@ def json_response(payload: dict) -> Response:
     return Response(content=json.dumps(payload), media_type="application/json")
 
 
+class EmptyCompletion(Exception):
+    """The provider answered, but with no usable content."""
+
+
+def repair_instruction(violations: List[str]) -> str:
+    lines = ["That deck breaks the decomposition contract:"]
+    lines += ["- " + v for v in violations]
+    lines.append(
+        "Rebuild the deck so that none of those hold. Keep the same topic and question. "
+        "If a claim really is irreducible, make it the bedrock rather than tagging a "
+        "descent card ATOMIC. Return only the JSON object."
+    )
+    return "\n".join(lines)
+
+
+async def request_deck(client: AsyncOpenAI, model: str, messages: List[dict]) -> tuple:
+    response = await client.chat.completions.create(
+        model=model,
+        messages=messages,
+        stream=False,
+        temperature=0.4,
+        max_tokens=DECK_MAX_TOKENS,
+        response_format={"type": "json_object"},
+    )
+    choice = response.choices[0] if response.choices else None
+    content = choice.message.content if choice else ""
+    finish = choice.finish_reason if choice else None
+
+    if not content or not content.strip():
+        raise EmptyCompletion(
+            (f"{model} returned an empty response. "
+             + model_failure_hint(model, response.model, finish)).strip()
+        )
+
+    return normalize_deck(extract_json_object(content)), content
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     config = get_config()
@@ -330,26 +473,30 @@ async def chat(req: ChatRequest):
     last_error = ""
     for model in [config["model"], *config["fallbacks"]]:
         try:
-            response = await client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=False,
-                temperature=0.4,
-                max_tokens=DECK_MAX_TOKENS,
-                response_format={"type": "json_object"},
-            )
-            choice = response.choices[0] if response.choices else None
-            content = choice.message.content if choice else ""
-            finish = choice.finish_reason if choice else None
+            deck, raw = await request_deck(client, model, messages)
+            if deck["verified"]:
+                return json_response(deck)
 
-            if not content or not content.strip():
-                last_error = (
-                    f"{model} returned an empty response. "
-                    + model_failure_hint(model, response.model, finish)
-                ).strip()
-                continue
+            # One repair pass, quoting the exact rules broken. Worth a single
+            # extra call: an unsound chain is the one thing this app cannot
+            # afford to render as though it passed.
+            hard, _ = validate_chain(deck["cards"])
+            try:
+                repaired, _ = await request_deck(client, model, messages + [
+                    {"role": "assistant", "content": raw},
+                    {"role": "user", "content": repair_instruction(hard)},
+                ])
+                if repaired["verified"]:
+                    return json_response(repaired)
+                if len(repaired["issues"]) < len(deck["issues"]):
+                    deck = repaired
+            except Exception:
+                pass  # keep the original deck; it is already flagged unverified
 
-            return json_response(normalize_deck(extract_json_object(content)))
+            # Still unsound. Return it labelled rather than pretending it passed.
+            return json_response(deck)
+        except EmptyCompletion as exc:
+            last_error = str(exc)
         except (json.JSONDecodeError, ValueError) as exc:
             last_error = f"{model} returned unusable JSON: {exc}"
         except Exception as exc:
@@ -417,9 +564,9 @@ async def sample_deck():
                 "tag": "VERIFIED",
                 "principle": "Gas molecules redirect passing electromagnetic waves in all directions.",
                 "chain": [
+                    "The sky looks blue",
                     "Blue light arrives from that direction",
-                    "Light is redirected toward us",
-                    "Gas molecules do the redirecting",
+                    "Air redirects light toward us",
                 ],
                 "discarded": [],
                 "explanation": "The Sun sits in one small part of the sky, yet light comes from everywhere. Something between the Sun and the eye must be redirecting it. Measurement shows the atmosphere's gas molecules do this.",
@@ -433,9 +580,9 @@ async def sample_deck():
                 "tag": "VERIFIED",
                 "principle": "Scattering by particles far smaller than the wavelength grows sharply as wavelength shortens.",
                 "chain": [
+                    "The sky looks blue",
                     "Blue light arrives from that direction",
-                    "Light is redirected toward us",
-                    "Gas molecules do the redirecting",
+                    "Air redirects light toward us",
                     "Short wavelengths redirect far more",
                 ],
                 "discarded": ["Sunlight is 'white' and therefore colourless"],
@@ -450,9 +597,11 @@ async def sample_deck():
                 "tag": "ATOMIC",
                 "principle": "An accelerating electric charge radiates, and radiated power rises with the square of the driving frequency.",
                 "chain": [
+                    "The sky looks blue",
+                    "Blue light arrives from that direction",
+                    "Air redirects light toward us",
                     "Short wavelengths redirect far more",
-                    "Molecules hold charges that the wave drives",
-                    "Accelerating charge radiates",
+                    "Driven charges radiate, harder at high frequency",
                 ],
                 "discarded": [],
                 "explanation": "A passing wave drives the charges in a molecule back and forth. Driven charges accelerate, and accelerating charges radiate a new wave in all directions. Higher frequency means harder acceleration, so more radiated power. This is electromagnetism itself — it does not reduce further.",

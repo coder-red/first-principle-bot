@@ -14,6 +14,8 @@ from main import (
     make_error_deck,
     model_failure_hint,
     normalize_deck,
+    repair_instruction,
+    validate_chain,
 )
 
 
@@ -174,6 +176,143 @@ def test_error_deck_matches_normalized_shape():
     normalized = normalize_deck(minimal_deck())
     assert set(error) == set(normalized)
     assert set(error["cards"][0]) == set(normalized["cards"][0])
+
+
+# ── chain validation ───────────────────────────────────────────────────────
+
+def sound_deck(**deck_overrides):
+    """A minimal deck that satisfies the decomposition contract."""
+    cards = [
+        {"phase": "question", "level": 0, "title": "Surface belief", "tag": "ASSUMPTION",
+         "principle": "What everyone starts from.", "chain": []},
+        {"phase": "descent", "level": 1, "title": "One", "tag": "VERIFIED",
+         "principle": "p1", "chain": ["a"]},
+        {"phase": "descent", "level": 2, "title": "Two", "tag": "VERIFIED",
+         "principle": "p2", "chain": ["a", "b"]},
+        {"phase": "descent", "level": 3, "title": "Three", "tag": "VERIFIED",
+         "principle": "p3", "chain": ["a", "b", "c"]},
+        {"phase": "bedrock", "level": 4, "title": "Bedrock", "tag": "ATOMIC",
+         "principle": "irreducible", "chain": ["a", "b", "c", "d"]},
+        {"phase": "rebuild", "level": 2, "title": "Rebuild", "tag": "VERIFIED",
+         "principle": "r", "chain": ["d", "c"]},
+        {"phase": "insight", "level": 0, "title": "Insight", "tag": "VERIFIED",
+         "principle": "i", "chain": []},
+    ]
+    deck = {"topic": "T", "question": "Q?", "cards": cards}
+    deck.update(deck_overrides)
+    return deck
+
+
+def hard_issues(deck):
+    return validate_chain(normalize_deck(deck)["cards"])[0]
+
+
+def soft_issues(deck):
+    return validate_chain(normalize_deck(deck)["cards"])[1]
+
+
+def test_sound_deck_is_verified():
+    deck = normalize_deck(sound_deck())
+    assert deck["verified"] is True
+    assert deck["issues"] == []
+
+
+def test_sample_deck_endpoint_is_clean(client):
+    """The bundled sample is the exemplar, so it must break no rule at all."""
+    deck = client.get("/api/sample-deck").json()
+    assert deck["verified"] is True
+    assert deck["issues"] == []
+
+
+def test_descent_card_tagged_atomic_is_a_hard_violation():
+    """The bug seen live: a descent card claimed to be irreducible."""
+    deck = sound_deck()
+    deck["cards"][3]["tag"] = "ATOMIC"
+    issues = hard_issues(deck)
+    assert any("tagged ATOMIC" in i for i in issues), issues
+    assert normalize_deck(deck)["verified"] is False
+
+
+def test_bedrock_no_deeper_than_descent_is_a_hard_violation():
+    """Also seen live: bedrock at the same level as the last descent step."""
+    deck = sound_deck()
+    deck["cards"][4]["level"] = 3
+    issues = hard_issues(deck)
+    assert any("no deeper than the descent" in i for i in issues), issues
+
+
+def test_levels_must_strictly_increase():
+    deck = sound_deck()
+    deck["cards"][2]["level"] = 1
+    assert any("strictly deeper" in i for i in hard_issues(deck))
+
+
+def test_descent_must_start_at_level_one():
+    deck = sound_deck()
+    for card, level in zip(deck["cards"][1:4], (2, 3, 4)):
+        card["level"] = level
+    deck["cards"][4]["level"] = 5
+    assert any("must start at level 1" in i for i in hard_issues(deck))
+
+
+def test_exactly_one_bedrock_required():
+    deck = sound_deck()
+    deck["cards"][3]["phase"] = "bedrock"
+    assert any("exactly one bedrock" in i for i in hard_issues(deck))
+
+
+def test_missing_bedrock_is_a_hard_violation():
+    deck = sound_deck()
+    deck["cards"][4]["phase"] = "descent"
+    assert any("exactly one bedrock" in i for i in hard_issues(deck))
+
+
+def test_shallow_descent_is_a_hard_violation():
+    deck = sound_deck()
+    deck["cards"] = [deck["cards"][0], deck["cards"][1], deck["cards"][4]]
+    assert any("at least 3 cards deep" in i for i in hard_issues(deck))
+
+
+@pytest.mark.parametrize("tag", ["VERIFIED", "CONVENTION", ""])
+def test_bedrock_must_be_atomic_or_unknown(tag):
+    deck = sound_deck()
+    deck["cards"][4]["tag"] = tag
+    assert any("must be ATOMIC" in i for i in hard_issues(deck))
+
+
+def test_bedrock_may_be_unknown_without_fabricating():
+    deck = sound_deck()
+    deck["cards"][4]["tag"] = "UNKNOWN"
+    assert hard_issues(deck) == []
+
+
+def test_rebuild_on_assumption_is_a_soft_issue():
+    deck = sound_deck()
+    deck["cards"][5]["tag"] = "ASSUMPTION"
+    assert hard_issues(deck) == []
+    assert any("should stand on" in i for i in soft_issues(deck))
+
+
+def test_chain_that_does_not_extend_is_a_soft_issue():
+    deck = sound_deck()
+    deck["cards"][3]["chain"] = ["x", "y", "z"]
+    assert hard_issues(deck) == []
+    assert any("does not extend" in i for i in soft_issues(deck))
+
+
+def test_soft_issues_are_reported_but_still_verified():
+    deck = sound_deck()
+    deck["cards"] = [c for c in deck["cards"] if c["phase"] != "insight"]
+    normalized = normalize_deck(deck)
+    assert normalized["verified"] is True
+    assert any("never states what the decomposition revealed" in i
+               for i in normalized["issues"])
+
+
+def test_repair_instruction_quotes_every_violation():
+    text = repair_instruction(["rule one broken", "rule two broken"])
+    assert "rule one broken" in text and "rule two broken" in text
+    assert "only the JSON object" in text
 
 
 # ── request validation ─────────────────────────────────────────────────────

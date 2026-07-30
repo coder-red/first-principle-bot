@@ -38,6 +38,24 @@ Each card is tagged with how well its claim is known:
 There is no second prompt and no Markdown: the prose view is built from the deck
 structure, so it gets real typography instead of a wall of grey text.
 
+### The chain is checked, not just rendered
+
+A decomposition that breaks its own rules is worse than none at all, because the
+form signals rigour the content does not have. Every deck is validated against
+the contract before it renders:
+
+- exactly one bedrock, sitting **below** the deepest descent step
+- descent levels strictly increasing from 1
+- bedrock tagged `ATOMIC`, or `UNKNOWN` rather than fabricating a floor
+- **no descent card tagged `ATOMIC`** — if a step were irreducible, that step is
+  the bedrock. This is the most common model failure.
+- rebuild steps standing on `ATOMIC`/`VERIFIED` material
+- each card's chain extending the previous one
+
+A violation triggers one repair call quoting the exact rule broken. If the deck
+still fails, it renders with a **Chain not verified** banner listing what broke,
+rather than passing itself off as sound.
+
 ### Following the thread
 
 Three ways to keep going, all of which post to the same endpoint:
@@ -118,11 +136,19 @@ through `innerHTML`, so there is no markup-injection surface.
 ## Layout
 
 ```
-main.py              FastAPI app, the deck prompt, normalization, drill-down
+main.py              FastAPI app, the deck prompt, validation, repair, drill-down
 static/index.html    Shell only
 static/script.js     Transcript, deck modal, prose view, follow-ups
 static/style.css     Design tokens, light/dark themes, card and prose styles
 tests/test_deck.py   Deck contract and request-validation tests
+skill/               The method, packaged as a portable Claude skill
 ```
 
 No build step. No npm. Edit and reload.
+
+## Using the method without the app
+
+`skill/first-principles/` packages the protocol, the tag vocabulary and the
+self-check rules as a Claude skill, plus a self-contained HTML template that
+renders a deck as an artifact. It makes no network calls and needs no server.
+See [skill/README.md](skill/README.md).
