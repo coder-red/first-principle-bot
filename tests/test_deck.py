@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -402,6 +403,109 @@ def test_hint_explains_token_exhaustion():
 
 def test_hint_is_empty_for_ordinary_failure():
     assert model_failure_hint("some/model", "some/model", "stop") == ""
+
+
+# ── the repair pass, end to end ────────────────────────────────────────────
+
+class StubClient:
+    """Returns canned completions so the repair loop can be driven directly."""
+
+    def __init__(self, payloads):
+        self.payloads = list(payloads)
+        self.calls = []
+
+        outer = self
+
+        class Completions:
+            async def create(self, **kwargs):
+                outer.calls.append(kwargs["messages"])
+                body = outer.payloads.pop(0)
+                if isinstance(body, Exception):
+                    raise body
+                return SimpleNamespace(
+                    model=kwargs["model"],
+                    choices=[SimpleNamespace(
+                        message=SimpleNamespace(content=json.dumps(body)),
+                        finish_reason="stop",
+                    )],
+                )
+
+        self.chat = SimpleNamespace(completions=Completions())
+
+
+@pytest.fixture
+def with_key(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    monkeypatch.setenv("FALLBACK_MODELS", "")
+
+
+def use_stub(monkeypatch, payloads):
+    stub = StubClient(payloads)
+    monkeypatch.setattr(main, "get_client", lambda *a, **k: stub)
+    return stub
+
+
+def broken_deck():
+    """Well-formed JSON, incoherent reasoning: a descent card claiming to be
+    irreducible, and a bedrock no deeper than the descent that reached it."""
+    deck = sound_deck()
+    deck["cards"][3]["tag"] = "ATOMIC"
+    deck["cards"][4]["level"] = 3
+    return deck
+
+
+def test_unsound_deck_triggers_one_repair_call(client, with_key, monkeypatch):
+    stub = use_stub(monkeypatch, [broken_deck(), sound_deck()])
+    body = client.post("/api/chat", json={"message": "why"}).json()
+
+    assert len(stub.calls) == 2, "expected exactly one repair attempt"
+    assert body["verified"] is True
+    assert body["issues"] == []
+
+
+def test_repair_prompt_quotes_the_broken_rules(client, with_key, monkeypatch):
+    stub = use_stub(monkeypatch, [broken_deck(), sound_deck()])
+    client.post("/api/chat", json={"message": "why"})
+
+    repair_turn = stub.calls[1][-1]["content"]
+    assert "tagged ATOMIC" in repair_turn
+    assert "no deeper than the descent" in repair_turn
+
+
+def test_sound_deck_never_costs_a_repair_call(client, with_key, monkeypatch):
+    stub = use_stub(monkeypatch, [sound_deck()])
+    body = client.post("/api/chat", json={"message": "why"}).json()
+
+    assert len(stub.calls) == 1
+    assert body["verified"] is True
+
+
+def test_deck_is_returned_flagged_when_repair_also_fails(client, with_key, monkeypatch):
+    stub = use_stub(monkeypatch, [broken_deck(), broken_deck()])
+    body = client.post("/api/chat", json={"message": "why"}).json()
+
+    assert len(stub.calls) == 2, "must not retry forever"
+    assert body["verified"] is False
+    assert any("tagged ATOMIC" in i for i in body["issues"])
+
+
+def test_repair_keeps_the_better_deck_when_neither_passes(client, with_key, monkeypatch):
+    """A repair that fixes some rules but not all should still be preferred."""
+    partly_fixed = broken_deck()
+    partly_fixed["cards"][3]["tag"] = "VERIFIED"   # one violation resolved
+    stub = use_stub(monkeypatch, [broken_deck(), partly_fixed])
+
+    body = client.post("/api/chat", json={"message": "why"}).json()
+    assert body["verified"] is False
+    assert not any("tagged ATOMIC" in i for i in body["issues"])
+
+
+def test_repair_failure_falls_back_to_the_original_deck(client, with_key, monkeypatch):
+    stub = use_stub(monkeypatch, [broken_deck(), RuntimeError("provider exploded")])
+    body = client.post("/api/chat", json={"message": "why"}).json()
+
+    assert body["verified"] is False
+    assert body["cards"], "a failed repair must not lose the original deck"
 
 
 # ── endpoints ──────────────────────────────────────────────────────────────

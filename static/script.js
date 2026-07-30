@@ -3,6 +3,8 @@
 
   var state = {
     history: [],
+    turns: [],
+    trail: [],
     isWaiting: false,
     abortController: null,
     lastQuestion: '',
@@ -10,6 +12,9 @@
     lastDeckEl: null,
     regenBar: null,
   };
+
+  var STORE_KEY = 'fp_thread_v1';
+  var MAX_STORED_TURNS = 20;
 
   var $ = function (s) { return document.querySelector(s); };
 
@@ -386,6 +391,150 @@
     return frag;
   }
 
+  /* ── quiz ──────────────────────────────────────────────────────────────
+     Tests the method, not recall. Asking "what did card 3 say?" would test
+     memorisation, which is the mode this whole app argues against. Telling a
+     physical necessity from a human convention is the one transferable skill
+     in the deck, so that is what gets asked.
+
+     Every question is derived from the deck JSON — no extra model call. */
+
+  var QUIZ_TAGS = ['ATOMIC', 'VERIFIED', 'CONVENTION', 'ASSUMPTION', 'UNKNOWN'];
+  var MAX_QUIZ_QUESTIONS = 5;
+
+  function shuffled(list) {
+    var out = list.slice();
+    for (var i = out.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = out[i]; out[i] = out[j]; out[j] = t;
+    }
+    return out;
+  }
+
+  function quizQuestions(deck) {
+    var usable = deck.cards.filter(function (c) { return c.tag && c.principle; });
+    // Bedrock first — it is the deck's point — then spread across the rest.
+    var bedrock = usable.filter(function (c) { return c.phase === 'bedrock'; });
+    var rest = shuffled(usable.filter(function (c) { return c.phase !== 'bedrock'; }));
+    return bedrock.concat(rest).slice(0, MAX_QUIZ_QUESTIONS).map(function (card) {
+      var distractors = shuffled(QUIZ_TAGS.filter(function (t) { return t !== card.tag; })).slice(0, 3);
+      return { card: card, options: shuffled([card.tag].concat(distractors)) };
+    });
+  }
+
+  function buildQuiz(deck) {
+    var wrap = el('div', 'quiz');
+
+    if (!deck.verified) {
+      // Quizzing an unsound chain would teach the wrong thing outright.
+      var blocked = el('div', 'quiz-blocked');
+      blocked.appendChild(el('p', 'quiz-blocked-head', 'Not available for this deck'));
+      blocked.appendChild(el('p', 'quiz-blocked-body',
+        'This chain did not pass validation, so its tags cannot be trusted as '
+        + 'answers. Testing yourself against them would teach the wrong thing.'));
+      wrap.appendChild(blocked);
+      return wrap;
+    }
+
+    var questions = quizQuestions(deck);
+    if (questions.length < 2) {
+      wrap.appendChild(el('p', 'quiz-blocked-body',
+        'This deck has too few tagged claims to test.'));
+      return wrap;
+    }
+
+    var index = 0;
+    var matched = 0;
+    var body = el('div', 'quiz-body');
+    wrap.appendChild(body);
+
+    function renderSummary() {
+      body.replaceChildren();
+      var sum = el('div', 'quiz-summary');
+      sum.appendChild(el('p', 'quiz-summary-count',
+        'You matched the deck on ' + matched + ' of ' + questions.length + ' claims.'));
+      // Deliberately "matched", not "scored": these tags are the model's
+      // judgement, not ground truth, and disagreeing can be the right call.
+      sum.appendChild(el('p', 'quiz-summary-note',
+        'These are the deck’s own judgements, not settled fact. Where you '
+        + 'disagreed, the interesting question is which of you is right.'));
+      var again = el('button', 'quiz-again');
+      again.type = 'button';
+      again.textContent = 'Go again';
+      again.addEventListener('click', function () {
+        questions = quizQuestions(deck);
+        index = 0; matched = 0; renderQuestion();
+      });
+      sum.appendChild(again);
+      body.appendChild(sum);
+    }
+
+    function renderQuestion() {
+      if (index >= questions.length) return renderSummary();
+
+      var q = questions[index];
+      body.replaceChildren();
+
+      body.appendChild(el('p', 'quiz-progress',
+        'Claim ' + (index + 1) + ' of ' + questions.length));
+      body.appendChild(el('blockquote', 'quiz-claim', q.card.principle));
+      body.appendChild(el('p', 'quiz-ask', 'How well is this known?'));
+
+      var opts = el('div', 'quiz-options');
+      var answered = false;
+
+      q.options.forEach(function (tag) {
+        var meta = TAG_META[tag];
+        var btn = el('button', 'quiz-option');
+        btn.type = 'button';
+        btn.appendChild(el('span', 'quiz-option-glyph tag-text-' + tag.toLowerCase(), meta.glyph));
+        btn.appendChild(el('span', 'quiz-option-label', meta.label));
+        btn.addEventListener('click', function () {
+          if (answered) return;
+          answered = true;
+          var right = tag === q.card.tag;
+          if (right) matched++;
+
+          opts.querySelectorAll('.quiz-option').forEach(function (b) { b.disabled = true; });
+          btn.classList.add(right ? 'is-right' : 'is-wrong');
+          if (!right) {
+            var correct = opts.querySelector('[data-correct]');
+            if (correct) correct.classList.add('is-right');
+          }
+          body.appendChild(reveal(q, right));
+        });
+        if (tag === q.card.tag) btn.dataset.correct = 'true';
+        opts.appendChild(btn);
+      });
+
+      body.appendChild(opts);
+    }
+
+    function reveal(q, right) {
+      var meta = TAG_META[q.card.tag];
+      var box = el('div', 'quiz-reveal');
+
+      var head = el('p', 'quiz-verdict ' + (right ? 'is-right' : 'is-wrong'));
+      head.appendChild(el('span', 'quiz-verdict-glyph', right ? '✓' : '✕'));
+      head.appendChild(el('span', null,
+        right ? 'That is how the deck tags it' : 'The deck tags it ' + meta.label));
+      box.appendChild(head);
+
+      box.appendChild(el('p', 'quiz-meaning', meta.label + ' — ' + meta.hint));
+      if (q.card.explanation) box.appendChild(el('p', 'quiz-why', q.card.explanation));
+
+      var next = el('button', 'quiz-next');
+      next.type = 'button';
+      next.textContent = index + 1 >= questions.length ? 'See how you did' : 'Next claim';
+      next.addEventListener('click', function () { index++; renderQuestion(); });
+      box.appendChild(next);
+      return box;
+    }
+
+    renderQuestion();
+    return wrap;
+  }
+
   function deckToText(deck) {
     var lines = [deck.topic, deck.question, ''];
     deck.cards.forEach(function (c) {
@@ -441,11 +590,16 @@
     tabs.setAttribute('role', 'tablist');
     var cardsTab = el('button', 'view-tab active', 'Cards');
     var proseTab = el('button', 'view-tab', 'Full reasoning');
-    [cardsTab, proseTab].forEach(function (t) {
+    var quizTab = el('button', 'view-tab', 'Test yourself');
+    [cardsTab, proseTab, quizTab].forEach(function (t) {
       t.type = 'button';
       t.setAttribute('role', 'tab');
     });
-    tabs.append(cardsTab, proseTab);
+    if (!deck.verified) {
+      quizTab.classList.add('is-muted');
+      quizTab.title = 'This chain did not pass validation';
+    }
+    tabs.append(cardsTab, proseTab, quizTab);
 
     /* cards view */
     var stack = el('div', 'stack');
@@ -491,6 +645,9 @@
     /* prose view */
     var proseView = el('div', 'view view-prose hidden');
 
+    /* quiz view */
+    var quizView = el('div', 'view view-quiz hidden');
+
     /* ask bar */
     var askForm = el('form', 'ask-bar');
     var askInput = el('input', 'ask-input');
@@ -512,27 +669,41 @@
       sendMessage(q, { title: card.title, principle: card.principle, chain: card.chain || [] });
     });
 
-    dialog.append(closeBtn, header, tabs, cardsView, proseView, askForm);
+    dialog.append(closeBtn, header, tabs, cardsView, proseView, quizView, askForm);
     modal.append(backdrop, dialog);
+
+    var VIEWS = [
+      { name: 'cards', tab: cardsTab, panel: cardsView },
+      { name: 'prose', tab: proseTab, panel: proseView },
+      { name: 'quiz',  tab: quizTab,  panel: quizView },
+    ];
 
     function setView(next) {
       view = next;
-      var isCards = view === 'cards';
-      cardsTab.classList.toggle('active', isCards);
-      proseTab.classList.toggle('active', !isCards);
-      cardsTab.setAttribute('aria-selected', isCards ? 'true' : 'false');
-      proseTab.setAttribute('aria-selected', isCards ? 'false' : 'true');
-      cardsView.classList.toggle('hidden', !isCards);
-      proseView.classList.toggle('hidden', isCards);
-      askInput.placeholder = isCards ? 'Ask about this card...' : 'Ask about this reasoning...';
-      if (!isCards && !proseView.childElementCount) {
+      VIEWS.forEach(function (v) {
+        var on = v.name === view;
+        v.tab.classList.toggle('active', on);
+        v.tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        v.panel.classList.toggle('hidden', !on);
+      });
+
+      if (view === 'prose' && !proseView.childElementCount) {
         proseView.replaceChildren(buildProse(deck, drill));
       }
+      if (view === 'quiz') {
+        // Rebuilt each time so "Test yourself" always starts fresh.
+        quizView.replaceChildren(buildQuiz(deck));
+      }
+
+      askForm.classList.toggle('hidden', view === 'quiz');
+      askInput.placeholder = view === 'cards'
+        ? 'Ask about this card...' : 'Ask about this reasoning...';
       updateScrollHint();
     }
 
-    cardsTab.addEventListener('click', function () { setView('cards'); });
-    proseTab.addEventListener('click', function () { setView('prose'); });
+    VIEWS.forEach(function (v) {
+      v.tab.addEventListener('click', function () { setView(v.name); });
+    });
 
     function updateScrollHint() {
       var target = view === 'cards' ? face : proseView;
@@ -692,11 +863,25 @@
 
   /* ── transcript ────────────────────────────────────────────────────── */
 
-  function addUserMessage(text) {
+  /* The trail is what turns a run of drill-downs into one exploration instead
+     of a pile of unrelated decks. */
+  function addUserMessage(text, trail) {
     var welcome = document.querySelector('.welcome');
     if (welcome) welcome.remove();
 
     var block = el('div', 'thread-q');
+
+    if (trail && trail.length) {
+      var crumbs = el('nav', 'trail');
+      crumbs.setAttribute('aria-label', 'Path drilled through');
+      trail.forEach(function (step, i) {
+        if (i) crumbs.appendChild(el('span', 'trail-sep', '↓'));
+        crumbs.appendChild(el('span', 'trail-step', step));
+      });
+      block.appendChild(crumbs);
+      block.classList.add('is-drill');
+    }
+
     block.appendChild(el('p', 'thread-q-text', text));
     messagesEl.appendChild(block);
     scrollToBottom();
@@ -906,6 +1091,15 @@
     if (state.followupsEl) { state.followupsEl.remove(); state.followupsEl = null; }
     if (state.regenBar) { state.regenBar.remove(); state.regenBar = null; }
 
+    // A drill extends the path; a fresh question roots a new one. Seeding the
+    // root with the question itself is what lets the breadcrumb show the whole
+    // descent — "why is the sky blue -> air redirects light -> ..." — rather
+    // than only the hops after the first.
+    var trail = focus
+      ? state.trail.concat([focus.title || focus.principle || 'this claim'])
+      : [text];
+    state.trail = trail;
+
     state.lastQuestion = text;
     state.lastFocus = focus || null;
     state.isWaiting = true;
@@ -913,7 +1107,7 @@
     inputEl.disabled = true;
     hideToast();
 
-    addUserMessage(text);
+    addUserMessage(text, trail.slice(0, -1));
     state.history.push({ role: 'user', content: text });
 
     var deckEl = addPendingDeck();
@@ -946,6 +1140,9 @@
       renderDeck(deckEl, deck);
       state.history.push({ role: 'assistant', content: deckSummary(deck) });
       addRegenerateButton(deckEl);
+      state.turns.push({ q: text, deck: deck, trail: trail.slice(0, -1) });
+      saveThread();
+      if (newThreadBtn) newThreadBtn.hidden = false;
     } catch (err) {
       state.history.pop();   // no assistant turn was recorded
       if (err.name === 'AbortError') {
@@ -992,6 +1189,76 @@
     if (chip && chip.dataset.prompt) sendMessage(chip.dataset.prompt);
   });
 
+  /* ── persistence ───────────────────────────────────────────────────────
+     A reload used to lose the whole thread, which is punishing when each
+     answer costs a model call. Decks are plain JSON, so the thread stores
+     and replays exactly. */
+
+  function saveThread() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        turns: state.turns.slice(-MAX_STORED_TURNS),
+        history: state.history.slice(-40),
+        trail: state.trail,
+      }));
+    } catch (e) {
+      // Quota exceeded or storage disabled. Losing history is not worth
+      // interrupting the reader over.
+    }
+  }
+
+  function clearThread() {
+    try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+    state.turns = [];
+    state.history = [];
+    state.trail = [];
+    state.lastDeckEl = null;
+    state.regenBar = null;
+    state.followupsEl = null;
+    location.reload();
+  }
+
+  function restoreThread() {
+    var raw;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) { return false; }
+    if (!raw) return false;
+
+    var saved;
+    try { saved = JSON.parse(raw); } catch (e) { return false; }
+    if (!saved || !Array.isArray(saved.turns) || !saved.turns.length) return false;
+
+    state.history = Array.isArray(saved.history) ? saved.history : [];
+    state.trail = Array.isArray(saved.trail) ? saved.trail : [];
+
+    saved.turns.forEach(function (turn) {
+      if (!turn || !turn.deck || !turn.deck.cards) return;
+      state.turns.push(turn);
+      addUserMessage(turn.q, turn.trail);
+      var block = el('div', 'answer');
+      messagesEl.appendChild(block);
+      renderDeck(block, turn.deck);
+      state.lastQuestion = turn.q;
+      addRegenerateButton(block);
+    });
+
+    if (newThreadBtn) newThreadBtn.hidden = false;
+    scrollToBottom();
+    return true;
+  }
+
+  var newThreadBtn = document.getElementById('new-thread');
+  if (newThreadBtn) {
+    newThreadBtn.addEventListener('click', function () {
+      if (state.isWaiting) return;
+      clearThread();
+    });
+  }
+
   renderSuggestions();
   handleInput();
+
+  if (restoreThread()) {
+    var welcome = document.querySelector('.welcome');
+    if (welcome) welcome.remove();
+  }
 })();
