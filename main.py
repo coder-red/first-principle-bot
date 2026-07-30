@@ -1,10 +1,12 @@
 import os
 import json
-from typing import List, Optional
+from functools import lru_cache
+from typing import List, Literal, Optional
+
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import StreamingResponse, FileResponse
-from pydantic import BaseModel
+from fastapi.responses import Response, FileResponse
+from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
 import uvicorn
 from dotenv import load_dotenv
@@ -15,25 +17,57 @@ app = FastAPI(title="First Principle Bot")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Benchmarked against this app's actual workload: ling-2.6-flash produced the
+# deepest decks (depth 4, proper bedrock) and the longest reasoning, at
+# $0.03/Mtok. Routers like openrouter/auto and openrouter/free are deliberately
+# NOT defaults — they pick a different model per request and can land on one
+# that cannot hold a chat at all.
+DEFAULT_MODEL = "inclusionai/ling-2.6-flash"
+DEFAULT_FALLBACKS = "meta-llama/llama-3.3-70b-instruct,mistralai/mistral-small-24b-instruct-2501"
+DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
+
+DECK_MAX_TOKENS = int(os.environ.get("DECK_MAX_TOKENS", 4000))
+
+ROUTER_MODELS = ("openrouter/auto", "openrouter/free")
+
+PHASES = ("question", "descent", "bedrock", "rebuild", "insight")
+TAGS = ("ATOMIC", "VERIFIED", "CONVENTION", "ASSUMPTION", "UNKNOWN")
+
+
 @app.get("/")
 async def root():
     return FileResponse("static/index.html")
 
 
-def make_error_flashcards(topic: str, error: str) -> dict:
-    topic = topic.strip() or "your question"
+def get_config() -> dict:
+    """Read runtime config from the environment on each request.
+
+    Kept dynamic so editing .env under `uvicorn --reload` takes effect without
+    a code change, while the HTTP client itself is still pooled by get_client.
+    """
     return {
-        "topic": "Flashcard setup issue",
-        "cards": [
-            {
-                "title": "I Could Not Generate This Deck",
-                "question": f"Why did the bot fail to answer: {topic[:80]}?",
-                "principle": "[VERIFIED] The app needs a working model response before it can create topic-specific cards.",
-                "explanation": error,
-                "takeaway": "Fix the model/API setup, then ask again.",
-            },
+        "api_key": os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY"),
+        "endpoint": os.environ.get("API_ENDPOINT", DEFAULT_ENDPOINT),
+        "model": os.environ.get("MODEL", DEFAULT_MODEL),
+        "fallbacks": [
+            m.strip()
+            for m in os.environ.get("FALLBACK_MODELS", DEFAULT_FALLBACKS).split(",")
+            if m.strip()
         ],
     }
+
+
+@lru_cache(maxsize=8)
+def get_client(api_key: str, endpoint: str) -> AsyncOpenAI:
+    """One pooled client per (key, endpoint) instead of one per request."""
+    return AsyncOpenAI(
+        api_key=api_key,
+        base_url=endpoint,
+        default_headers={
+            "HTTP-Referer": "http://127.0.0.1:8000",
+            "X-Title": "First Principle Bot",
+        },
+    )
 
 
 def extract_json_object(content: str) -> dict:
@@ -49,228 +83,415 @@ def extract_json_object(content: str) -> dict:
             return json.loads(cleaned[start:end + 1])
         raise
 
-TEXT_SYSTEM_PROMPT = """You are First Principle Bot. You explain topics using genuine first-principles reasoning — the method Aristotle called "the first basis from which a thing is known" and Descartes practiced as systematic doubt. You do NOT fill out a template. You REASON OUT LOUD.
 
-You MUST execute the following thinking protocol step by step in your response:
+def _text(value, fallback: str = "") -> str:
+    return value.strip() if isinstance(value, str) and value.strip() else fallback
 
-══ PHASE 1: IDENTIFY THE QUESTION ══
-State the single question you are trying to answer. Be precise. If the user's prompt is vague, define the specific question first.
 
-══ PHASE 2: INVENTORY OF BELIEFS ══
-List everything you think you know about the topic — every common belief, convention, factoid, and assumption. Do not evaluate them yet. Just put them on the table.
+def _text_list(value, limit: int = 8) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    return [item.strip() for item in value if isinstance(item, str) and item.strip()][:limit]
 
-══ PHASE 3: CARTESIAN DOUBT ══
-For each belief from Phase 2, apply systematic doubt:
-- Can I prove this is true?
-- What would it take to falsify this?
-- Is this a physical necessity, a logical necessity, or a human convention?
-- Could this be false and everything else still work?
 
-Label each surviving belief as one of:
-[ATOMIC] — cannot be reduced further; a true first principle (physical law, logical axiom, definitional truth)
-[VERIFIED] — empirically confirmed, but could in principle be otherwise
-[CONVENTION] — widely accepted but not proven; discard during reconstruction
-[ASSUMPTION] — taken for granted; discard during reconstruction
-[UNKNOWN] — not known; stop here
+def _tag(value) -> str:
+    """Normalize '[atomic]', 'ATOMIC', ' Verified ' -> a known tag, else ''."""
+    candidate = _text(value).strip("[] ").upper()
+    return candidate if candidate in TAGS else ""
 
-══ PHASE 4: RECURSIVE DECOMPOSITION (THE CHAIN) ══
-Take every [VERIFIED] and [CONVENTION] item and decompose it:
-- Ask "What is this made of?" (constituents)
-- Ask "What is this based on?" (foundations)
-- Ask "What must be true for this to exist?" (prerequisites)
 
-If the answer is still decomposable, decompose again. Show the chain with indentation:
-Level 1: claim → Level 2: what it's made of → Level 3: what THAT is made of → ... until you hit [ATOMIC].
-You must go at least 3 levels deep on at least one branch. If you can go deeper, go deeper.
+def normalize_deck(data: dict) -> dict:
+    """Coerce raw model output into the exact shape the client renders.
 
-══ PHASE 5: DISCARD ══
-Remove every [CONVENTION], [ASSUMPTION], and [UNKNOWN] item. Keep ONLY [ATOMIC] and [VERIFIED] items. These are your first principles.
+    The client trusts this result, so every field is forced to the right type
+    here rather than defended against in JavaScript.
+    """
+    if not isinstance(data, dict):
+        raise ValueError("Deck must be a JSON object.")
 
-══ PHASE 6: RECONSTRUCTION ══
-Using ONLY your surviving first principles ([ATOMIC] and [VERIFIED]), rebuild the explanation from the ground up. Each step must follow logically from the last. If at any point you need to reintroduce a [CONVENTION] to make the explanation work, flag it explicitly: "WARNING: this step relies on the convention that X, not on a first principle."
+    raw_cards = data.get("cards")
+    if not isinstance(raw_cards, list) or not raw_cards:
+        raise ValueError("Deck must include a non-empty 'cards' array.")
 
-══ PHASE 7: INSIGHT ══
-State clearly what becomes visible from this perspective that analogical/conventional thinking would miss. What did discarding the conventions reveal?
+    cards = []
+    for index, raw in enumerate(raw_cards[:9]):
+        if not isinstance(raw, dict):
+            continue
 
-══ STRICT RULES ══
-1. ZERO analogies. Never say "it's like" or "similar to" as explanation. Forbidden.
-2. You must show your decomposition chain (Phase 4) indented, at least 3 levels deep.
-3. Reconstruction (Phase 6) may ONLY use [ATOMIC] and [VERIFIED] items. If you use a [CONVENTION], you must flag it with a WARNING.
-4. If you don't know something, say "I don't know" — do not fabricate.
-5. Distinguish physical necessity from logical necessity from human convention.
-6. A curious 16-year-old must be able to follow every step."""
+        phase = _text(raw.get("phase")).lower()
+        if phase not in PHASES:
+            phase = "descent"
 
-FLASHCARD_SYSTEM_PROMPT = """You are First Principle Bot in FLASHCARD mode. Generate a short deck of proper flashcards that teaches the user's topic from first principles.
+        try:
+            level = int(raw.get("level", 0))
+        except (TypeError, ValueError):
+            level = 0
 
-Return ONLY valid JSON. No Markdown, no code fences, no extra text.
+        cards.append({
+            "phase": phase,
+            "level": max(0, min(level, 9)),
+            "title": _text(raw.get("title"), f"Step {index + 1}"),
+            "question": _text(raw.get("question"), "What must be true here?"),
+            "tag": _tag(raw.get("tag")),
+            "principle": _text(raw.get("principle")),
+            "chain": _text_list(raw.get("chain"), limit=6),
+            "discarded": _text_list(raw.get("discarded"), limit=4),
+            "explanation": _text(raw.get("explanation"), "I don't know."),
+            "takeaway": _text(raw.get("takeaway")),
+        })
 
-JSON shape:
+    if not cards:
+        raise ValueError("Deck contained no usable cards.")
+
+    return {
+        "topic": _text(data.get("topic"), "Flashcards"),
+        "question": _text(data.get("question"), cards[0]["question"]),
+        "cards": cards,
+        "followups": _text_list(data.get("followups"), limit=3),
+    }
+
+
+def make_error_deck(topic: str, error: str) -> dict:
+    topic = _text(topic, "your question")
+    return {
+        "topic": "Setup issue",
+        "question": f"Why did the bot fail to answer: {topic[:80]}?",
+        "cards": [
+            {
+                "phase": "question",
+                "level": 0,
+                "title": "I Could Not Build This Deck",
+                "question": f"Why did the bot fail to answer: {topic[:80]}?",
+                "tag": "VERIFIED",
+                "principle": "The app needs a working model response before it can build a decomposition chain.",
+                "chain": [],
+                "discarded": [],
+                "explanation": error,
+                "takeaway": "Fix the model/API setup, then ask again.",
+            },
+        ],
+        "followups": [],
+    }
+
+
+def model_failure_hint(requested: str, routed: Optional[str], finish: Optional[str]) -> str:
+    """Explain a bad completion instead of shrugging at the user."""
+    parts = []
+    if routed and routed != requested:
+        parts.append(f"`{requested}` routed this request to `{routed}`.")
+    if finish == "length":
+        parts.append(
+            "It hit the token limit before producing usable output — often a reasoning "
+            "model spending the whole budget on hidden reasoning tokens. Raise "
+            "DECK_MAX_TOKENS or pick a non-reasoning model."
+        )
+    elif requested in ROUTER_MODELS:
+        parts.append(
+            f"`{requested}` is a router: it picks a different model per request, and some "
+            "of them cannot hold a chat at all. Pin a specific model with MODEL= in .env."
+        )
+    return " ".join(parts)
+
+
+DECK_SYSTEM_PROMPT = """You are First Principle Bot.
+
+You explain things using genuine first-principles reasoning — the method Aristotle called "the first basis from which a thing is known" and Descartes practiced as systematic doubt. You do NOT fill out a template. You reason, then you render the reasoning as a deck.
+
+A deck is NOT a list of facts about the topic. A deck is a RENDERING OF ONE DECOMPOSITION CHAIN: the reader descends through the layers of the topic until they hit bedrock, then climbs back up rebuilding the explanation from that bedrock alone.
+
+══ THINK FIRST (silently, do not output) ══
+1. IDENTIFY THE QUESTION — the single precise question the deck answers.
+2. INVENTORY — every common belief about the topic.
+3. CARTESIAN DOUBT — for each: can I prove it? what would falsify it? is it physical necessity, logical necessity, or human convention?
+   Label each: ATOMIC (irreducible — physical law, logical axiom, definitional truth), VERIFIED (empirically confirmed but could be otherwise), CONVENTION (widely accepted, unproven), ASSUMPTION (taken for granted), UNKNOWN.
+4. RECURSIVE DECOMPOSITION — take the surviving claim and ask "what is this made of?", "what is this based on?", "what must be true for this to exist?" Repeat until you reach ATOMIC. Go at least 3 levels deep.
+5. DISCARD — drop every CONVENTION, ASSUMPTION and UNKNOWN.
+6. RECONSTRUCTION — rebuild using ONLY ATOMIC and VERIFIED items.
+7. INSIGHT — what does discarding the conventions reveal?
+
+══ THEN OUTPUT ══
+Return ONLY valid JSON. No Markdown, no code fences, no prose outside the object.
+
 {
   "topic": "short topic title",
+  "question": "the single precise question this deck answers",
   "cards": [
     {
+      "phase": "question | descent | bedrock | rebuild | insight",
+      "level": 0,
       "title": "short card title",
-      "question": "one clear question this card answers",
-      "principle": "one [ATOMIC] or [VERIFIED] first principle",
-      "explanation": "2-4 short sentences that explain the idea from the principle",
+      "question": "the one question this card answers",
+      "tag": "ATOMIC | VERIFIED | CONVENTION | ASSUMPTION | UNKNOWN",
+      "principle": "the single claim this card establishes, in one sentence",
+      "chain": ["level 1 claim", "level 2 what it is made of", "level 3 what THAT is made of"],
+      "discarded": ["a convention or assumption dropped at this step"],
+      "explanation": "2-4 short sentences justifying this step",
       "takeaway": "one concise memory hook"
     }
-  ]
+  ],
+  "followups": ["a genuinely intriguing next question", "another", "a third"]
 }
 
-Create 4-6 cards. Each card must teach one step, and the deck must progress from foundations to insight.
+══ DECK STRUCTURE — follow exactly ══
+Produce 6 or 7 cards in this order:
 
-STRICT RULES:
-1. ZERO analogies. Never say "it's like" or "similar to".
-2. Use only [ATOMIC] truths and [VERIFIED] facts as principles.
-3. If you don't know something, say "I don't know" in the relevant card.
-4. Keep each explanation easy for a curious 16-year-old."""
+1. ONE card with phase "question", level 0. It states the precise question and the surface belief most people start from. Tag it CONVENTION or ASSUMPTION — the starting point is almost never a first principle. "discarded" lists the beliefs you are about to strip away.
+
+2. THREE OR MORE cards with phase "descent", level 1, 2, 3 (increasing, one per card). Each answers "what is THIS made of / based on?" about the previous card. Each goes strictly deeper. Tag each honestly. "chain" holds the path from level 1 down to this card's level, one string per level, deepest last.
+
+3. ONE card with phase "bedrock", level = the deepest level reached. This is where decomposition stops. Tag MUST be ATOMIC, or UNKNOWN if you genuinely cannot reduce further and will not fabricate.
+
+4. ONE OR TWO cards with phase "rebuild", level counting back DOWN toward 1. Reconstruct the original topic using ONLY ATOMIC and VERIFIED material. If a step needs a CONVENTION, say so explicitly in "explanation" and tag that card CONVENTION.
+
+5. ONE card with phase "insight", level 0. What becomes visible now that the conventions are gone and that analogical thinking would have missed.
+
+══ FOLLOWUPS ══
+End with 2-3 "followups": short, genuinely curious questions this deck opens up. They must be answerable by the same decomposition method, and they must be interesting to a curious person — not homework restatements of the topic. Never repeat the deck's own question.
+
+══ STRICT RULES ══
+1. ZERO analogies. Never write "it's like", "similar to", "think of it as". Forbidden.
+2. Descent levels must strictly increase; each descent card must decompose the one before it, not restate it.
+3. The bedrock card must be genuinely irreducible. Do not stop at a convention and call it ATOMIC.
+4. Rebuild cards may use ONLY ATOMIC and VERIFIED material.
+5. If you don't know something, say "I don't know" in that card and tag it UNKNOWN. Never fabricate.
+6. "chain" strings are short — under 60 characters each. They render as a ladder, not as prose.
+7. A curious 16-year-old must be able to follow every card."""
+
+
+class HistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=20000)
+
+
+class Focus(BaseModel):
+    """A node the reader wants decomposed further.
+
+    Drilling into a chain rung, drilling into a card, and asking a free-text
+    question about a card all reduce to this: build a deck that starts here.
+    """
+    title: str = Field(default="", max_length=300)
+    principle: str = Field(default="", max_length=2000)
+    chain: List[str] = Field(default_factory=list, max_length=6)
+
 
 class ChatRequest(BaseModel):
-    message: str
-    history: List[dict] = []
-    mode: str = "text"
+    message: str = Field(min_length=1, max_length=8000)
+    history: List[HistoryMessage] = []
+    focus: Optional[Focus] = None
+
+
+def focus_instruction(focus: Focus) -> str:
+    lines = [
+        "This is a DRILL-DOWN. Do not restart from the surface.",
+        f'Take this established claim as the deck\'s starting point: "{focus.principle or focus.title}"',
+    ]
+    if focus.chain:
+        lines.append("It was reached through this chain: " + " -> ".join(focus.chain))
+    lines.append(
+        "The question card must state that claim as the starting belief, and every descent "
+        "card must go BELOW it — decompose what that claim itself rests on. Do not re-derive "
+        "the chain above it."
+    )
+    return "\n".join(lines)
+
+
+def build_messages(req: ChatRequest) -> List[dict]:
+    messages = [{"role": "system", "content": DECK_SYSTEM_PROMPT}]
+    for msg in req.history[-20:]:
+        messages.append({"role": msg.role, "content": msg.content})
+    messages.append({"role": "user", "content": req.message})
+    if req.focus:
+        messages.append({"role": "user", "content": focus_instruction(req.focus)})
+    messages.append({
+        "role": "user",
+        "content": "Build the deck now. Return only the JSON object with topic, question, cards and followups.",
+    })
+    return messages
+
+
+def json_response(payload: dict) -> Response:
+    return Response(content=json.dumps(payload), media_type="application/json")
 
 
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
-    api_key = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        if req.mode == "flashcard":
-            error = "OPENROUTER_API_KEY is not set for this server process. Create a .env file in the project or start the server from a shell where the key is available."
-            return StreamingResponse(iter([json.dumps(make_error_flashcards(req.message, error))]), media_type="text/plain")
-        raise HTTPException(status_code=400, detail="API key is required. Set OPENROUTER_API_KEY or OPENAI_API_KEY environment variable.")
+    config = get_config()
 
-    api_endpoint = os.environ.get("API_ENDPOINT", "https://openrouter.ai/api/v1")
-    model = os.environ.get("MODEL", "openrouter/free")
+    if not config["api_key"]:
+        return json_response(make_error_deck(
+            req.message,
+            "OPENROUTER_API_KEY is not set for this server process. Copy .env.example "
+            "to .env, add your key, then restart the server.",
+        ))
 
-    client = AsyncOpenAI(
-        api_key=api_key,
-        base_url=api_endpoint,
-        default_headers={
-            "HTTP-Referer": "http://127.0.0.1:8000",
-            "X-Title": "First Principle Bot",
-        },
-    )
+    client = get_client(config["api_key"], config["endpoint"])
+    messages = build_messages(req)
 
-    def flashcard_response(content: str):
-        if content and content.strip():
-            try:
-                parsed = extract_json_object(content)
-                if isinstance(parsed.get("cards"), list) and parsed["cards"]:
-                    return True, parsed
-            except (json.JSONDecodeError, AttributeError):
-                pass
-        return False, content
-
-    system_prompt = FLASHCARD_SYSTEM_PROMPT if req.mode == "flashcard" else TEXT_SYSTEM_PROMPT
-
-    messages = [{"role": "system", "content": system_prompt}]
-    for msg in req.history[-20:]:
-        messages.append({"role": msg["role"], "content": msg["content"]})
-    messages.append({"role": "user", "content": req.message})
-
-    if req.mode == "flashcard":
-        messages.append({
-            "role": "user",
-            "content": "Generate the flashcard deck now. Return only the JSON object with topic and cards.",
-        })
-        extra_kwargs = {
-            "response_format": {"type": "json_object"},
-        }
-        models_to_try = [model, "inclusionai/ling-3.0-flash:free"]
-        last_error = ""
-        for attempt_model in models_to_try:
-            try:
-                response = await client.chat.completions.create(
-                    model=attempt_model,
-                    messages=messages,
-                    stream=False,
-                    temperature=0.4,
-                    max_tokens=2500,
-                    **extra_kwargs,
-                )
-                content = response.choices[0].message.content if response.choices else ""
-                ok, result = flashcard_response(content)
-                if ok:
-                    return StreamingResponse(iter([json.dumps(result)]), media_type="text/plain")
-                last_error = f"Model {attempt_model} returned non-JSON."
-            except Exception as exc:
-                last_error = f"Model {attempt_model}: {str(exc)}"
-
-        error = f"Flashcard generation failed. Last error: {last_error}"
-        return StreamingResponse(iter([json.dumps(make_error_flashcards(req.message, error))]), media_type="text/plain")
-
-    async def generate():
+    last_error = ""
+    for model in [config["model"], *config["fallbacks"]]:
         try:
-            stream = await client.chat.completions.create(
+            response = await client.chat.completions.create(
                 model=model,
                 messages=messages,
-                stream=True,
-                temperature=0.7,
-                max_tokens=2000
+                stream=False,
+                temperature=0.4,
+                max_tokens=DECK_MAX_TOKENS,
+                response_format={"type": "json_object"},
             )
-            saw_content = False
-            async for chunk in stream:
-                delta = chunk.choices[0].delta if chunk.choices else None
-                if delta and delta.content:
-                    saw_content = True
-                    yield delta.content
+            choice = response.choices[0] if response.choices else None
+            content = choice.message.content if choice else ""
+            finish = choice.finish_reason if choice else None
 
-            if not saw_content:
-                yield "I did not receive text from the model. Try again, or switch models in your .env file."
+            if not content or not content.strip():
+                last_error = (
+                    f"{model} returned an empty response. "
+                    + model_failure_hint(model, response.model, finish)
+                ).strip()
+                continue
+
+            return json_response(normalize_deck(extract_json_object(content)))
+        except (json.JSONDecodeError, ValueError) as exc:
+            last_error = f"{model} returned unusable JSON: {exc}"
         except Exception as exc:
-            yield f"Error from model provider: {str(exc)}"
+            last_error = f"{model}: {exc}"
 
-    return StreamingResponse(generate(), media_type="text/plain")
+    return json_response(make_error_deck(req.message, f"Deck generation failed. {last_error}"))
+
 
 @app.get("/api/health")
 async def health():
-    key_set = bool(os.environ.get("OPENROUTER_API_KEY") or os.environ.get("OPENAI_API_KEY"))
+    config = get_config()
     return {
         "status": "ok",
-        "api_key_configured": key_set,
-        "api_endpoint": os.environ.get("API_ENDPOINT", "https://openrouter.ai/api/v1"),
-        "model": os.environ.get("MODEL", "openrouter/free"),
+        "api_key_configured": bool(config["api_key"]),
+        "api_endpoint": config["endpoint"],
+        "model": config["model"],
+        "fallback_models": config["fallbacks"],
+        "model_is_router": config["model"] in ROUTER_MODELS,
     }
 
 
-@app.get("/api/sample-flashcards")
-async def sample_flashcards():
-    return {
+@app.get("/api/sample-deck")
+async def sample_deck():
+    return normalize_deck({
         "topic": "Why the sky is blue",
+        "question": "Why does the daytime sky appear blue rather than any other colour?",
+        "followups": [
+            "Why is a sunset red if the same air is doing the scattering?",
+            "What colour is the sky on a planet with no atmosphere?",
+            "Why is the sea blue — is it the same reason?",
+        ],
         "cards": [
             {
-                "title": "Sunlight Contains Many Wavelengths",
-                "question": "What reaches Earth's atmosphere from the Sun?",
-                "principle": "[VERIFIED] Sunlight contains visible electromagnetic waves with different wavelengths.",
-                "explanation": "Visible sunlight is not one wavelength. Measurements with prisms and spectrometers show a range from shorter violet and blue wavelengths to longer red wavelengths.",
-                "takeaway": "Different wavelengths enter the air together.",
+                "phase": "question",
+                "level": 0,
+                "title": "The Sky Is Blue",
+                "question": "What do we actually start out believing here?",
+                "tag": "ASSUMPTION",
+                "principle": "The sky is a blue thing that we look at.",
+                "chain": [],
+                "discarded": [
+                    "The sky is a surface with a colour",
+                    "The sky reflects the ocean",
+                ],
+                "explanation": "Ordinary speech treats the sky as an object that owns a colour. Nothing has been proven yet. Before decomposing, note that 'the sky' is not a material object at all — it is a direction you look in.",
+                "takeaway": "The starting belief names an object that does not exist.",
             },
             {
-                "title": "Air Molecules Scatter Light",
-                "question": "What does air do to incoming light?",
-                "principle": "[VERIFIED] Gas molecules can redirect incoming electromagnetic waves.",
-                "explanation": "Earth's atmosphere contains small gas molecules. When sunlight passes through them, some light is redirected away from its original path and moves toward your eyes from different parts of the sky.",
-                "takeaway": "The sky glows because air redirects light.",
+                "phase": "descent",
+                "level": 1,
+                "title": "Colour Is Light Reaching An Eye",
+                "question": "What is a perceived colour made of?",
+                "tag": "VERIFIED",
+                "principle": "Seeing a colour means light of certain wavelengths arrives at the retina.",
+                "chain": ["The sky looks blue", "Blue light arrives from that direction"],
+                "discarded": [],
+                "explanation": "No colour exists in the air itself. What can be measured is light travelling from a direction into an eye. So the question becomes: why does light from empty directions reach us at all?",
+                "takeaway": "Ask what arrives, not what the thing is.",
             },
             {
-                "title": "Short Wavelengths Scatter More",
-                "question": "Why is the scattered light mostly blue?",
-                "principle": "[VERIFIED] Rayleigh scattering is stronger for shorter visible wavelengths.",
-                "explanation": "Blue light has a shorter wavelength than red light. In clean air, shorter visible wavelengths are redirected more strongly, so more blue light reaches your eyes from the open sky.",
-                "takeaway": "Blue gets redirected more than red.",
+                "phase": "descent",
+                "level": 2,
+                "title": "Air Redirects Light",
+                "question": "Why does light arrive from a direction with no source in it?",
+                "tag": "VERIFIED",
+                "principle": "Gas molecules redirect passing electromagnetic waves in all directions.",
+                "chain": [
+                    "Blue light arrives from that direction",
+                    "Light is redirected toward us",
+                    "Gas molecules do the redirecting",
+                ],
+                "discarded": [],
+                "explanation": "The Sun sits in one small part of the sky, yet light comes from everywhere. Something between the Sun and the eye must be redirecting it. Measurement shows the atmosphere's gas molecules do this.",
+                "takeaway": "Empty-looking sky is full of redirected light.",
             },
             {
-                "title": "Your Eyes Complete The Perception",
-                "question": "Why do we perceive blue instead of violet?",
-                "principle": "[VERIFIED] Human color vision depends on cone sensitivity and the light that reaches the retina.",
-                "explanation": "Violet is also scattered strongly, but there is less violet in sunlight, some is absorbed higher in the atmosphere, and human eyes are less sensitive to it. The combined signal is perceived as blue.",
-                "takeaway": "The physical light and your eye both matter.",
+                "phase": "descent",
+                "level": 3,
+                "title": "Redirection Depends On Wavelength",
+                "question": "Why is the redirected light not white?",
+                "tag": "VERIFIED",
+                "principle": "Scattering by particles far smaller than the wavelength grows sharply as wavelength shortens.",
+                "chain": [
+                    "Blue light arrives from that direction",
+                    "Light is redirected toward us",
+                    "Gas molecules do the redirecting",
+                    "Short wavelengths redirect far more",
+                ],
+                "discarded": ["Sunlight is 'white' and therefore colourless"],
+                "explanation": "Sunlight contains many wavelengths together. Air molecules are much smaller than those wavelengths, and in that regime the redirection strength rises steeply as wavelength falls. Short waves are redirected many times more than long ones.",
+                "takeaway": "Short waves scatter, long waves pass through.",
+            },
+            {
+                "phase": "bedrock",
+                "level": 4,
+                "title": "Charges Radiate When Driven",
+                "question": "Why should a small molecule redirect short waves more at all?",
+                "tag": "ATOMIC",
+                "principle": "An accelerating electric charge radiates, and radiated power rises with the square of the driving frequency.",
+                "chain": [
+                    "Short wavelengths redirect far more",
+                    "Molecules hold charges that the wave drives",
+                    "Accelerating charge radiates",
+                ],
+                "discarded": [],
+                "explanation": "A passing wave drives the charges in a molecule back and forth. Driven charges accelerate, and accelerating charges radiate a new wave in all directions. Higher frequency means harder acceleration, so more radiated power. This is electromagnetism itself — it does not reduce further.",
+                "takeaway": "Bedrock: driven charge radiates, harder at higher frequency.",
+            },
+            {
+                "phase": "rebuild",
+                "level": 2,
+                "title": "Rebuild: The Sky From Bedrock",
+                "question": "Can the whole effect be rebuilt from that alone?",
+                "tag": "VERIFIED",
+                "principle": "Sunlight drives atmospheric charges, which re-radiate short wavelengths preferentially in every direction.",
+                "chain": [
+                    "Driven charge radiates, harder at high frequency",
+                    "Air re-radiates short waves in all directions",
+                    "Every direction glows with short-wavelength light",
+                ],
+                "discarded": [],
+                "explanation": "Sunlight of many wavelengths enters the air. Each molecule's charges are driven and re-radiate, most strongly at the short-wave end. That re-radiated light leaves in every direction, so every line of sight glows — including ones pointing nowhere near the Sun.",
+                "takeaway": "No surface needed. The air itself glows.",
+            },
+            {
+                "phase": "insight",
+                "level": 0,
+                "title": "Why Blue And Not Violet",
+                "question": "What does this reveal that the surface story hides?",
+                "tag": "VERIFIED",
+                "principle": "The perceived colour is set jointly by the physics of scattering and the response of the eye.",
+                "chain": [],
+                "discarded": ["The sky 'is' blue"],
+                "explanation": "Violet scatters even more strongly than blue, so pure physics predicts a violet sky. Sunlight contains less violet, more is absorbed high up, and human cones respond weakly to it. The answer is not a property of the sky — it is a property of light and observer together.",
+                "takeaway": "Remove the observer and the question loses its answer.",
             },
         ],
-    }
+    })
+
 
 if __name__ == "__main__":
+    host = os.environ.get("HOST", "127.0.0.1")
     port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=True)
+    reload = os.environ.get("RELOAD", "1") == "1"
+    uvicorn.run("main:app", host=host, port=port, reload=reload)
