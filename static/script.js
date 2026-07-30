@@ -724,7 +724,18 @@
 
     var head = el('div', 'answer-head');
     head.appendChild(el('span', 'answer-topic', deck.topic));
-    head.appendChild(el('span', 'answer-meta', deck.cards.length + ' cards · ' + depth + ' levels deep'));
+
+    var meta = el('span', 'answer-meta');
+    meta.appendChild(el('span', null, deck.cards.length + ' cards · ' + depth + ' levels deep'));
+    if (deck.verified) {
+      var ok = el('span', 'chain-ok');
+      ok.appendChild(el('span', 'chain-ok-glyph', '✓'));
+      ok.appendChild(el('span', null, 'chain checked'));
+      ok.title = 'The decomposition follows its own rules: one bedrock, strictly '
+               + 'deepening descent, and nothing irreducible above it.';
+      meta.appendChild(ok);
+    }
+    head.appendChild(meta);
     block.appendChild(head);
 
     if (deck.question) block.appendChild(el('p', 'answer-question', deck.question));
@@ -763,6 +774,27 @@
     caption.appendChild(end);
 
     block.appendChild(caption);
+
+    /* An unsound chain must not render as though it passed. Saying so plainly
+       is the only honest option for a tool whose claim is rigour. */
+    if (!deck.verified) {
+      var warn = el('div', 'chain-warning');
+      var warnHead = el('div', 'chain-warning-head');
+      warnHead.appendChild(el('span', 'chain-warning-glyph', '!'));
+      warnHead.appendChild(el('span', null, 'Chain not verified'));
+      warn.appendChild(warnHead);
+      warn.appendChild(el('p', 'chain-warning-lede',
+        'The model broke its own decomposition rules here, and a repair attempt did '
+        + 'not fix it. Read this deck with that in mind.'));
+      if (deck.issues && deck.issues.length) {
+        var list = el('ul', 'chain-warning-list');
+        deck.issues.slice(0, 4).forEach(function (issue) {
+          list.appendChild(el('li', null, issue));
+        });
+        warn.appendChild(list);
+      }
+      block.appendChild(warn);
+    }
 
     /* the payoff: what it actually bottomed out on */
     var bed = deck.cards.filter(function (c) { return c.phase === 'bedrock'; })[0];

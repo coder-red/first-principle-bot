@@ -361,6 +361,19 @@ main::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 
   white-space: nowrap;
 }
 
+.answer-meta { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+.chain-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: var(--space-2);
+  border-left: 1px solid var(--color-border);
+  color: var(--tag-verified);
+}
+
+.chain-ok-glyph { font-size: 11px; }
+
 .answer-question {
   font-size: var(--text-base);
   font-weight: 600;
@@ -368,6 +381,58 @@ main::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 
   color: var(--color-text);
   max-width: 62ch;
 }
+
+/* -- an unsound chain says so, rather than rendering like a sound one -- */
+
+.chain-warning {
+  margin-top: var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border-left: 3px solid var(--tag-convention);
+  background: var(--tag-convention-bg);
+}
+
+.chain-warning-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--tag-convention);
+}
+
+.chain-warning-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--tag-convention);
+  color: var(--color-bg);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.chain-warning-lede {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+  max-width: 62ch;
+}
+
+.chain-warning-list {
+  margin: var(--space-3) 0 0;
+  padding-left: var(--space-5);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--color-text-secondary);
+}
+
+.chain-warning-list li { margin-bottom: var(--space-1); }
 
 /* -- the chain at a glance: each tick sits at its card's depth -- */
 

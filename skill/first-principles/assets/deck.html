@@ -1,0 +1,473 @@
+<title>First principles</title>
+
+<!--
+  Self-contained deck renderer. Replace the DECK constant at the bottom with
+  your deck object (see references/deck-schema.md) and publish.
+
+  No network access, no build step, no dependencies. Theme-aware in both
+  directions: follows the viewer's colour scheme and honours an explicit
+  data-theme on the root element.
+-->
+
+<style>
+  :root {
+    --bg: #FAFAFA; --surface: #FFFFFF; --surface-2: #F4F4F5;
+    --text: #18181B; --text-2: #52525B; --text-3: #A1A1AA;
+    --border: #E4E4E7; --accent: #6366F1; --accent-soft: rgba(99,102,241,.10);
+    --atomic: #6D28D9; --atomic-bg: rgba(109,40,217,.10);
+    --verified: #15803D; --convention: #B45309;
+    --assumption: #C2410C; --unknown: #52525B;
+    --shadow: rgba(0,0,0,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #09090B; --surface: #141418; --surface-2: #1E1E24;
+      --text: #ECECEE; --text-2: #A1A1AA; --text-3: #6B6B76;
+      --border: #2A2A33; --accent: #818CF8; --accent-soft: rgba(129,140,248,.12);
+      --atomic: #A78BFA; --atomic-bg: rgba(167,139,250,.14);
+      --verified: #4ADE80; --convention: #FBBF24;
+      --assumption: #FB923C; --unknown: #A1A1AA;
+      --shadow: rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #FAFAFA; --surface: #FFFFFF; --surface-2: #F4F4F5;
+    --text: #18181B; --text-2: #52525B; --text-3: #A1A1AA;
+    --border: #E4E4E7; --accent: #6366F1; --accent-soft: rgba(99,102,241,.10);
+    --atomic: #6D28D9; --atomic-bg: rgba(109,40,217,.10);
+    --verified: #15803D; --convention: #B45309;
+    --assumption: #C2410C; --unknown: #52525B;
+    --shadow: rgba(0,0,0,.08);
+  }
+  :root[data-theme="dark"] {
+    --bg: #09090B; --surface: #141418; --surface-2: #1E1E24;
+    --text: #ECECEE; --text-2: #A1A1AA; --text-3: #6B6B76;
+    --border: #2A2A33; --accent: #818CF8; --accent-soft: rgba(129,140,248,.12);
+    --atomic: #A78BFA; --atomic-bg: rgba(167,139,250,.14);
+    --verified: #4ADE80; --convention: #FBBF24;
+    --assumption: #FB923C; --unknown: #A1A1AA;
+    --shadow: rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 40px;
+    background: var(--bg); color: var(--text);
+    font: 16px/1.6 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+
+  .topic { font-size: 10px; font-weight: 800; text-transform: uppercase;
+           letter-spacing: .1em; color: var(--accent); }
+  .question { margin: 4px 0 0; font-size: 1.35rem; font-weight: 700;
+              line-height: 1.3; letter-spacing: -.02em; }
+
+  /* descent profile: each tick sits at its card's depth */
+  .rail { display: flex; align-items: flex-start; gap: 3px; height: 44px; margin-top: 24px; }
+  .tick { flex: 1; min-width: 0; height: 24px; display: flex; align-items: center;
+          justify-content: center; border: 1px solid var(--border); border-radius: 4px;
+          background: transparent; color: var(--text-3); font-size: 10px; cursor: pointer;
+          transform: translateY(calc(var(--d) * 18px));
+          transition: border-color .15s, background .15s; }
+  .tick:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .tick[aria-current="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .tick.bedrock { border-color: var(--atomic); background: var(--atomic-bg); }
+  .caption { display: grid; gap: 3px; margin: 4px 0 0; font-size: 9px; font-weight: 700;
+             text-transform: uppercase; letter-spacing: .08em; color: var(--text-3); }
+  .caption .mid { justify-self: center; color: var(--atomic); }
+  .caption .end { justify-self: end; }
+
+  .tabs { display: flex; gap: 2px; padding: 2px; margin: 24px 0 16px;
+          background: var(--surface); border: 1px solid var(--border);
+          border-radius: 999px; width: max-content; }
+  .tab { padding: 5px 14px; border: 0; border-radius: 999px; background: none;
+         color: var(--text-3); font: inherit; font-size: .75rem; font-weight: 600;
+         cursor: pointer; }
+  .tab[aria-selected="true"] { color: var(--accent); background: var(--accent-soft); }
+
+  .card { padding: 20px; background: var(--surface); border: 1px solid var(--border);
+          border-radius: 16px; box-shadow: 0 4px 16px var(--shadow); }
+  .card[data-phase="bedrock"] { border-color: var(--atomic); }
+
+  .card-head { display: flex; align-items: center; justify-content: space-between;
+               gap: 12px; margin-bottom: 14px; }
+  .phase { font-size: 10px; font-weight: 800; text-transform: uppercase;
+           letter-spacing: .1em; color: var(--text-3); white-space: nowrap; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0;
+          padding: 3px 10px 3px 8px; border-radius: 999px; font-size: 10px;
+          font-weight: 800; text-transform: uppercase; letter-spacing: .08em; }
+  .chip.ATOMIC     { color: var(--atomic);     background: var(--atomic-bg); }
+  .chip.VERIFIED   { color: var(--verified);   background: color-mix(in srgb, var(--verified) 12%, transparent); }
+  .chip.CONVENTION { color: var(--convention); background: color-mix(in srgb, var(--convention) 13%, transparent); }
+  .chip.ASSUMPTION { color: var(--assumption); background: color-mix(in srgb, var(--assumption) 13%, transparent); }
+  .chip.UNKNOWN    { color: var(--unknown);    background: color-mix(in srgb, var(--unknown) 13%, transparent); }
+
+  h2.title { margin: 0 0 8px; font-size: 1.35rem; font-weight: 700;
+             line-height: 1.2; letter-spacing: -.025em; }
+  .ask { margin: 0; font-size: .875rem; color: var(--text-2); }
+
+  .sec { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .sec > h3 { margin: 0 0 8px; font-size: 10px; font-weight: 800; text-transform: uppercase;
+              letter-spacing: .1em; color: var(--text-3); }
+  .principle { margin: 0; font-size: 1rem; font-weight: 600; line-height: 1.5; }
+  .why { margin: 0; font-size: .875rem; color: var(--text-2); line-height: 1.65; }
+
+  ol.chain { list-style: none; margin: 0; padding: 0; }
+  .rung { position: relative; display: flex; gap: 8px; padding-bottom: 12px;
+          padding-left: calc(var(--i) * 14px); font-size: .875rem;
+          line-height: 1.45; color: var(--text-2); }
+  .rung:last-child { padding-bottom: 0; }
+  .rung:not(:last-child)::before { content: ''; position: absolute;
+          left: calc(var(--i) * 14px + 4px); top: 14px; bottom: 0;
+          width: 1px; background: var(--border); }
+  .node { flex-shrink: 0; width: 9px; height: 9px; margin-top: 6px;
+          border-radius: 50%; background: var(--border); }
+  .rung.last .node { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .rung.last span:last-child { color: var(--text); font-weight: 600; }
+
+  ul.dropped { list-style: none; margin: 0; padding: 0; }
+  ul.dropped li { display: flex; gap: 8px; font-size: .875rem; color: var(--text-3);
+                  text-decoration: line-through; margin-bottom: 4px; }
+  ul.dropped li b { color: var(--assumption); text-decoration: none; font-weight: 700; }
+
+  .takeaway { margin: 20px 0 0; padding: 12px 16px; border-radius: 10px;
+              border-left: 3px solid var(--accent); background: var(--accent-soft);
+              font-size: .875rem; font-weight: 600; line-height: 1.5; }
+
+  .nav { display: flex; align-items: center; gap: 12px; margin-top: 20px; }
+  .nav button { width: 40px; height: 40px; border: 1px solid var(--border);
+                border-radius: 50%; background: var(--surface); color: var(--text);
+                font-size: 16px; cursor: pointer; }
+  .nav button:disabled { opacity: .3; cursor: not-allowed; }
+  .count { font-size: .75rem; font-weight: 600; color: var(--text-3); }
+
+  .step { padding: 16px 0; }
+  .step + .step { border-top: 1px solid var(--border); }
+  .steps { border-left: 1px solid var(--border); padding-left: 16px; margin-left: 4px; }
+  .step h3 { margin: 4px 0 6px; font-size: 1rem; font-weight: 700; line-height: 1.35; }
+
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (max-width: 480px) {
+    .question { font-size: 1.15rem; }
+    h2.title { font-size: 1.15rem; }
+    .rung { padding-left: calc(var(--i) * 9px); }
+    .rung:not(:last-child)::before { left: calc(var(--i) * 9px + 4px); }
+  }
+</style>
+
+<div class="wrap">
+  <p class="topic" id="topic"></p>
+  <h1 class="question" id="deck-question"></h1>
+
+  <div class="rail" id="rail" role="tablist" aria-label="Cards"></div>
+  <p class="caption" id="caption"></p>
+
+  <div class="tabs" role="tablist" aria-label="View">
+    <button class="tab" id="tab-cards" role="tab" aria-selected="true">Cards</button>
+    <button class="tab" id="tab-prose" role="tab" aria-selected="false">Full reasoning</button>
+  </div>
+
+  <div id="view-cards">
+    <article class="card" id="card" aria-live="polite"></article>
+    <div class="nav">
+      <button id="prev" aria-label="Previous card">&#8592;</button>
+      <button id="next" aria-label="Next card">&#8594;</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="view-prose" hidden></div>
+</div>
+
+<script>
+function renderDeck(DECK) {
+  'use strict';
+
+  var GLYPH = { ATOMIC: '◆', VERIFIED: '✓', CONVENTION: '≈',
+                ASSUMPTION: '○', UNKNOWN: '?' };
+  var PHASE = { question: 'Starting point', descent: 'Descent', bedrock: 'Bedrock',
+                rebuild: 'Rebuild', insight: 'Insight' };
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;   // never innerHTML: content is data
+    return n;
+  }
+
+  function phaseLabel(c) {
+    var base = PHASE[c.phase] || 'Step';
+    return (c.phase === 'question' || c.phase === 'insight') ? base
+      : base + ' · Level ' + c.level;
+  }
+
+  function chip(tag) {
+    if (!GLYPH[tag]) return null;
+    var s = el('span', 'chip ' + tag);
+    s.appendChild(el('span', null, GLYPH[tag]));
+    s.appendChild(el('span', null, tag.charAt(0) + tag.slice(1).toLowerCase()));
+    return s;
+  }
+
+  function section(label) {
+    var s = el('section', 'sec');
+    s.appendChild(el('h3', null, label));
+    return s;
+  }
+
+  function chainList(chain, tag) {
+    var ol = el('ol', 'chain');
+    chain.forEach(function (step, i) {
+      var last = i === chain.length - 1;
+      var li = el('li', 'rung' + (last ? ' last' : ''));
+      li.style.setProperty('--i', i);
+      li.appendChild(el('span', 'node'));
+      li.appendChild(el('span', null, step));
+      ol.appendChild(li);
+    });
+    return ol;
+  }
+
+  function droppedList(items) {
+    var ul = el('ul', 'dropped');
+    items.forEach(function (d) {
+      var li = el('li');
+      li.appendChild(el('b', null, '✕'));
+      li.appendChild(el('span', null, d));
+      ul.appendChild(li);
+    });
+    return ul;
+  }
+
+  function cardBody(c) {
+    var f = document.createDocumentFragment();
+    var head = el('div', 'card-head');
+    head.appendChild(el('span', 'phase', phaseLabel(c)));
+    var ch = chip(c.tag);
+    if (ch) head.appendChild(ch);
+    f.appendChild(head);
+
+    f.appendChild(el('h2', 'title', c.title));
+    if (c.question) f.appendChild(el('p', 'ask', c.question));
+
+    if (c.principle) {
+      var s = section('Principle');
+      s.appendChild(el('p', 'principle', c.principle));
+      f.appendChild(s);
+    }
+    if (c.chain && c.chain.length) {
+      var s2 = section('The chain');
+      s2.appendChild(chainList(c.chain, c.tag));
+      f.appendChild(s2);
+    }
+    if (c.discarded && c.discarded.length) {
+      var s3 = section('Discarded here');
+      s3.appendChild(droppedList(c.discarded));
+      f.appendChild(s3);
+    }
+    if (c.explanation) {
+      var s4 = section('Why');
+      s4.appendChild(el('p', 'why', c.explanation));
+      f.appendChild(s4);
+    }
+    if (c.takeaway) f.appendChild(el('p', 'takeaway', c.takeaway));
+    return f;
+  }
+
+  var cards = (DECK.cards || []).filter(Boolean);
+  if (!cards.length) return;
+
+  var maxLevel = cards.reduce(function (m, c) { return Math.max(m, c.level || 0); }, 1) || 1;
+  var index = 0;
+
+  document.getElementById('topic').textContent = DECK.topic || '';
+  document.getElementById('deck-question').textContent = DECK.question || '';
+
+  var railEl = document.getElementById('rail');
+  var ticks = cards.map(function (c, i) {
+    var t = el('button', 'tick' + (c.phase === 'bedrock' ? ' bedrock' : ''),
+               GLYPH[c.tag] || '·');
+    t.style.setProperty('--d', (c.level || 0) / maxLevel);
+    t.setAttribute('role', 'tab');
+    t.title = phaseLabel(c) + (c.tag ? ' · ' + c.tag : '') + ' — ' + c.title;
+    t.setAttribute('aria-label', 'Card ' + (i + 1) + ': ' + c.title);
+    t.onclick = function () { go(i); };
+    railEl.appendChild(t);
+    return t;
+  });
+
+  // Lay the caption on the rail's column grid so "bedrock" sits under the
+  // bedrock tick rather than at the midpoint.
+  var cap = document.getElementById('caption');
+  cap.style.gridTemplateColumns = 'repeat(' + cards.length + ', 1fr)';
+  var bedIndex = cards.findIndex(function (c) { return c.phase === 'bedrock'; });
+  var start = el('span', 'start', 'surface'); start.style.gridColumn = '1';
+  cap.appendChild(start);
+  if (bedIndex > 0 && bedIndex < cards.length - 1) {
+    var mid = el('span', 'mid', 'bedrock');
+    mid.style.gridColumn = String(bedIndex + 1);
+    cap.appendChild(mid);
+  }
+  var end = el('span', 'end', 'rebuilt');
+  end.style.gridColumn = String(cards.length);
+  cap.appendChild(end);
+
+  var cardEl = document.getElementById('card');
+  var prev = document.getElementById('prev');
+  var next = document.getElementById('next');
+  var count = document.getElementById('count');
+
+  function go(i) {
+    index = Math.max(0, Math.min(i, cards.length - 1));
+    var c = cards[index];
+    cardEl.replaceChildren(cardBody(c));
+    cardEl.dataset.phase = c.phase;
+    prev.disabled = index === 0;
+    next.disabled = index === cards.length - 1;
+    count.textContent = (index + 1) + ' of ' + cards.length;
+    ticks.forEach(function (t, j) {
+      t.setAttribute('aria-current', j === index ? 'true' : 'false');
+    });
+  }
+
+  prev.onclick = function () { go(index - 1); };
+  next.onclick = function () { go(index + 1); };
+
+  document.addEventListener('keydown', function (e) {
+    if (document.getElementById('view-cards').hidden) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); go(index + 1); }
+    if (e.key === 'ArrowLeft') { e.preventDefault(); go(index - 1); }
+  });
+
+  /* prose view: the same data as one continuous argument */
+  var proseEl = document.getElementById('view-prose');
+  var steps = el('div', 'steps');
+  cards.forEach(function (c) {
+    var s = el('article', 'step');
+    var h = el('div', 'card-head');
+    h.appendChild(el('span', 'phase', phaseLabel(c)));
+    var ch = chip(c.tag);
+    if (ch) h.appendChild(ch);
+    s.appendChild(h);
+    s.appendChild(el('h3', null, c.title));
+    if (c.principle) s.appendChild(el('p', 'principle', c.principle));
+    if (c.explanation) s.appendChild(el('p', 'why', c.explanation));
+    if (c.discarded && c.discarded.length) s.appendChild(droppedList(c.discarded));
+    steps.appendChild(s);
+  });
+  var deepest = cards.reduce(function (best, c) {
+    return (c.chain && c.chain.length > ((best && best.chain) ? best.chain.length : 0)) ? c : best;
+  }, null);
+  if (deepest && deepest.chain.length) {
+    var cs = section('The chain');
+    cs.appendChild(chainList(deepest.chain, deepest.tag));
+    proseEl.appendChild(cs);
+  }
+  proseEl.appendChild(steps);
+
+  var tabCards = document.getElementById('tab-cards');
+  var tabProse = document.getElementById('tab-prose');
+  function setView(showCards) {
+    document.getElementById('view-cards').hidden = !showCards;
+    proseEl.hidden = showCards;
+    tabCards.setAttribute('aria-selected', showCards ? 'true' : 'false');
+    tabProse.setAttribute('aria-selected', showCards ? 'false' : 'true');
+    railEl.hidden = !showCards;
+    document.getElementById('caption').hidden = !showCards;
+  }
+  tabCards.onclick = function () { setView(true); };
+  tabProse.onclick = function () { setView(false); };
+
+  go(0);
+}
+
+/* ---------------------------------------------------------------------------
+   Replace everything below with your deck. Schema: references/deck-schema.md
+   --------------------------------------------------------------------------- */
+var DECK = {
+  "topic": "Why the sky is blue",
+  "question": "Why does the daytime sky appear blue rather than any other colour?",
+  "cards": [
+    {
+      "phase": "question", "level": 0, "tag": "ASSUMPTION",
+      "title": "The Sky Is Blue",
+      "question": "What do we actually start out believing here?",
+      "principle": "The sky is a blue thing that we look at.",
+      "chain": [],
+      "discarded": ["The sky is a surface with a colour", "The sky reflects the ocean"],
+      "explanation": "Ordinary speech treats the sky as an object that owns a colour. 'The sky' is not a material object at all — it is a direction you look in.",
+      "takeaway": "The starting belief names an object that does not exist."
+    },
+    {
+      "phase": "descent", "level": 1, "tag": "VERIFIED",
+      "title": "Colour Is Light Reaching An Eye",
+      "question": "What is a perceived colour made of?",
+      "principle": "Seeing a colour means light of certain wavelengths arrives at the retina.",
+      "chain": ["The sky looks blue", "Blue light arrives from that direction"],
+      "discarded": [],
+      "explanation": "No colour exists in the air itself. What can be measured is light travelling from a direction into an eye.",
+      "takeaway": "Ask what arrives, not what the thing is."
+    },
+    {
+      "phase": "descent", "level": 2, "tag": "VERIFIED",
+      "title": "Air Redirects Light",
+      "question": "Why does light arrive from a direction with no source in it?",
+      "principle": "Gas molecules redirect passing electromagnetic waves in all directions.",
+      "chain": ["The sky looks blue", "Blue light arrives from that direction", "Air redirects light toward us"],
+      "discarded": [],
+      "explanation": "The Sun sits in one small part of the sky, yet light comes from everywhere. Measurement shows the atmosphere's gas molecules do the redirecting.",
+      "takeaway": "Empty-looking sky is full of redirected light."
+    },
+    {
+      "phase": "descent", "level": 3, "tag": "VERIFIED",
+      "title": "Redirection Depends On Wavelength",
+      "question": "Why is the redirected light not white?",
+      "principle": "Scattering by particles far smaller than the wavelength grows sharply as wavelength shortens.",
+      "chain": ["The sky looks blue", "Blue light arrives from that direction", "Air redirects light toward us", "Short wavelengths redirect far more"],
+      "discarded": ["Sunlight is 'white' and therefore colourless"],
+      "explanation": "Sunlight contains many wavelengths together. Air molecules are much smaller than those wavelengths, and in that regime short waves are redirected many times more than long ones.",
+      "takeaway": "Short waves scatter, long waves pass through."
+    },
+    {
+      "phase": "bedrock", "level": 4, "tag": "ATOMIC",
+      "title": "Charges Radiate When Driven",
+      "question": "Why should a small molecule redirect short waves more at all?",
+      "principle": "An accelerating electric charge radiates, and radiated power rises with the square of the driving frequency.",
+      "chain": ["The sky looks blue", "Blue light arrives from that direction", "Air redirects light toward us", "Short wavelengths redirect far more", "Driven charges radiate, harder at high frequency"],
+      "discarded": [],
+      "explanation": "A passing wave drives the charges in a molecule back and forth. Driven charges accelerate, and accelerating charges radiate. Higher frequency means harder acceleration, so more radiated power. This is electromagnetism itself — it does not reduce further.",
+      "takeaway": "Bedrock: driven charge radiates, harder at higher frequency."
+    },
+    {
+      "phase": "rebuild", "level": 2, "tag": "VERIFIED",
+      "title": "The Sky, Rebuilt From Bedrock",
+      "question": "Can the whole effect be rebuilt from that alone?",
+      "principle": "Sunlight drives atmospheric charges, which re-radiate short wavelengths preferentially in every direction.",
+      "chain": ["Driven charge radiates, harder at high frequency", "Air re-radiates short waves in all directions", "Every direction glows"],
+      "discarded": [],
+      "explanation": "Each molecule's charges are driven and re-radiate, most strongly at the short-wave end. That light leaves in every direction, so every line of sight glows — including ones pointing nowhere near the Sun.",
+      "takeaway": "No surface needed. The air itself glows."
+    },
+    {
+      "phase": "insight", "level": 0, "tag": "VERIFIED",
+      "title": "Why Blue And Not Violet",
+      "question": "What does this reveal that the surface story hides?",
+      "principle": "The perceived colour is set jointly by the physics of scattering and the response of the eye.",
+      "chain": [],
+      "discarded": ["The sky 'is' blue"],
+      "explanation": "Violet scatters even more strongly than blue, so pure physics predicts a violet sky. Sunlight contains less violet, more is absorbed high up, and human cones respond weakly to it. The answer is a property of light and observer together.",
+      "takeaway": "Remove the observer and the question loses its answer."
+    }
+  ],
+  "followups": [
+    "Why is a sunset red if the same air is doing the scattering?",
+    "What colour is the sky on a planet with no atmosphere?"
+  ]
+};
+
+renderDeck(DECK);
+</script>
