@@ -1050,14 +1050,27 @@
 
     btn.addEventListener('click', function () {
       if (state.isWaiting || !state.lastQuestion) return;
+      // The question heading has to go too — sendMessage re-adds it, and
+      // leaving it behind printed the question twice per regenerate.
+      if (state.lastQuestionEl) state.lastQuestionEl.remove();
       if (state.lastDeckEl) state.lastDeckEl.remove();
       if (state.followupsEl) { state.followupsEl.remove(); state.followupsEl = null; }
       bar.remove();
+      state.lastQuestionEl = null;
       state.lastDeckEl = null;
       state.regenBar = null;
+
+      // Regenerating replaces a turn, so every record of it has to roll back
+      // too. Without this the stored thread keeps the discarded turn and a
+      // reload resurrects the answer that was just thrown away.
+      var focus = state.lastFocus;
+      state.turns.pop();
+      if (focus) state.trail = state.trail.slice(0, -1);
+      saveThread();
+
       state.history.pop();   // drop the assistant turn we just removed
       state.history.pop();   // drop the user turn; sendMessage re-adds it
-      sendMessage(state.lastQuestion, state.lastFocus);
+      sendMessage(state.lastQuestion, focus);
     });
 
     bar.appendChild(btn);
@@ -1107,7 +1120,7 @@
     inputEl.disabled = true;
     hideToast();
 
-    addUserMessage(text, trail.slice(0, -1));
+    state.lastQuestionEl = addUserMessage(text, trail.slice(0, -1));
     state.history.push({ role: 'user', content: text });
 
     var deckEl = addPendingDeck();
@@ -1140,7 +1153,9 @@
       renderDeck(deckEl, deck);
       state.history.push({ role: 'assistant', content: deckSummary(deck) });
       addRegenerateButton(deckEl);
-      state.turns.push({ q: text, deck: deck, trail: trail.slice(0, -1) });
+      state.turns.push({
+        q: text, deck: deck, trail: trail.slice(0, -1), focus: focus || null,
+      });
       saveThread();
       if (newThreadBtn) newThreadBtn.hidden = false;
     } catch (err) {
@@ -1233,11 +1248,14 @@
     saved.turns.forEach(function (turn) {
       if (!turn || !turn.deck || !turn.deck.cards) return;
       state.turns.push(turn);
-      addUserMessage(turn.q, turn.trail);
+      state.lastQuestionEl = addUserMessage(turn.q, turn.trail);
       var block = el('div', 'answer');
       messagesEl.appendChild(block);
       renderDeck(block, turn.deck);
+      // Carried so a restored drill-down regenerates as a drill, not as a
+      // fresh question that has lost its focus.
       state.lastQuestion = turn.q;
+      state.lastFocus = turn.focus || null;
       addRegenerateButton(block);
     });
 
