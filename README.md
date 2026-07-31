@@ -53,8 +53,15 @@ the contract before it renders:
 - each card's chain extending the previous one
 
 A violation triggers one repair call quoting the exact rule broken. If the deck
-still fails, it renders with a **Chain not verified** banner listing what broke,
-rather than passing itself off as sound.
+still fails, it renders with a **Structure not verified** banner listing what
+broke, rather than passing itself off as sound.
+
+**This checks form, not truth.** A deck can obey every rule above and still be
+substantively wrong — stopping at a "bedrock" that is not actually irreducible,
+for instance. That is why the badge reads *structure checked* and not *verified*:
+it says the decomposition follows its own rules, not that the claims are correct.
+Judge those yourself. The tags are the model's opinion, and disagreeing with one
+is often the most interesting thing in the deck.
 
 ### Testing yourself
 
@@ -130,6 +137,7 @@ All optional except the key. See `.env.example`.
 | `MODEL` | `inclusionai/ling-2.6-flash` | Must support structured output. |
 | `FALLBACK_MODELS` | llama-3.3-70b, mistral-small-24b | Comma-separated, tried in order. |
 | `DECK_MAX_TOKENS` | `4000` | Raise if decks truncate. |
+| `DECK_TIMEOUT_SECONDS` | `90` | Ceiling on one model call. Decks normally take 25–35s. |
 | `HOST` | `127.0.0.1` | Local-only by default — see Security. |
 | `PORT` | `8000` | |
 | `RELOAD` | `1` | Set `0` for non-development runs. |

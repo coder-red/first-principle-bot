@@ -16,6 +16,11 @@
   var STORE_KEY = 'fp_thread_v1';
   var MAX_STORED_TURNS = 20;
 
+  // Sits above the server's own ceiling so the server's clearer error wins the
+  // race whenever it is the model that stalled.
+  var CLIENT_DEADLINE_MS = 150000;
+  var SLOW_NOTICE_MS = 20000;
+
   var $ = function (s) { return document.querySelector(s); };
 
   var messagesEl = $('#messages');
@@ -75,6 +80,7 @@
     check: ['M20 6 L9 17 L4 12'],
     deeper: ['M12 5 v14', 'M19 12 l-7 7 -7 -7'],
     send: ['M22 2 L11 13', 'M22 2 L15 22 L11 13 L2 9 Z'],
+    stop: ['M7 7 h10 v10 h-10 Z'],
   };
 
   /* ── theme ─────────────────────────────────────────────────────────── */
@@ -606,8 +612,14 @@
     var peek2 = el('div', 'peek peek-2');
     var peek1 = el('div', 'peek peek-1');
     var face = el('article', 'card-face');
-    face.setAttribute('aria-live', 'polite');
     stack.append(peek2, peek1, face);
+
+    // A live region on the card face re-read every field on every move. A
+    // short status line announces the move; the card itself stays readable
+    // on demand.
+    var status = el('p', 'sr-only');
+    status.setAttribute('role', 'status');
+    status.setAttribute('aria-live', 'polite');
 
     var controls = el('div', 'deck-controls');
     var prevBtn = el('button', 'nav-btn nav-prev');
@@ -640,7 +652,7 @@
     railCaption.appendChild(el('span', null, 'rebuilt'));
 
     var cardsView = el('div', 'view view-cards');
-    cardsView.append(stack, controls, railCaption);
+    cardsView.append(status, stack, controls, railCaption);
 
     /* prose view */
     var proseView = el('div', 'view view-prose hidden');
@@ -728,10 +740,16 @@
       nextBtn.setAttribute('aria-label', isLast ? 'Back to first card' : 'Next card');
 
       dots.forEach(function (dot, i) {
-        dot.classList.toggle('active', i === index);
+        var on = i === index;
+        dot.classList.toggle('active', on);
         dot.classList.toggle('seen', i < index);
-        dot.setAttribute('aria-selected', i === index ? 'true' : 'false');
+        dot.setAttribute('aria-selected', on ? 'true' : 'false');
+        // Roving tabindex: the rail is one tab stop, not one per card.
+        dot.tabIndex = on ? 0 : -1;
       });
+
+      status.textContent = 'Card ' + (index + 1) + ' of ' + total + ', '
+        + phaseText(card) + (card.tag ? ', ' + card.tag : '') + ': ' + card.title;
 
       var remaining = total - index - 1;
       peek1.classList.toggle('hidden', remaining < 1);
@@ -913,11 +931,15 @@
     var meta = el('span', 'answer-meta');
     meta.appendChild(el('span', null, deck.cards.length + ' cards · ' + depth + ' levels deep'));
     if (deck.verified) {
+      // "structure", not "chain" or "verified": this checks that the
+      // decomposition obeys its own rules, which is not a claim that the
+      // reasoning is correct. The badge must not imply the stronger thing.
       var ok = el('span', 'chain-ok');
       ok.appendChild(el('span', 'chain-ok-glyph', '✓'));
-      ok.appendChild(el('span', null, 'chain checked'));
-      ok.title = 'The decomposition follows its own rules: one bedrock, strictly '
-               + 'deepening descent, and nothing irreducible above it.';
+      ok.appendChild(el('span', null, 'structure checked'));
+      ok.title = 'The decomposition obeys its own rules: one bedrock, a strictly '
+               + 'deepening descent, and nothing irreducible above it. This does not '
+               + 'check that the claims are true — judge those yourself.';
       meta.appendChild(ok);
     }
     head.appendChild(meta);
@@ -974,7 +996,7 @@
       var warn = el('div', 'chain-warning');
       var warnHead = el('div', 'chain-warning-head');
       warnHead.appendChild(el('span', 'chain-warning-glyph', '!'));
-      warnHead.appendChild(el('span', null, 'Chain not verified'));
+      warnHead.appendChild(el('span', null, 'Structure not verified'));
       warn.appendChild(warnHead);
       warn.appendChild(el('p', 'chain-warning-lede',
         'The model broke its own decomposition rules here, and a repair attempt did '
@@ -1097,13 +1119,32 @@
 
   /* ── send ──────────────────────────────────────────────────────────── */
 
+  var slowTimer = null;
+
   function showTyping() {
+    var label = typingEl.querySelector('.typing-label');
+    if (label) label.textContent = 'Decomposing to first principles...';
     typingEl.classList.remove('hidden');
+    // A 30s wait with a static label is indistinguishable from a hang.
+    clearTimeout(slowTimer);
+    slowTimer = setTimeout(function () {
+      if (label) label.textContent = 'Still working — a deep chain can take a minute';
+    }, SLOW_NOTICE_MS);
     scrollToBottom();
   }
 
   function hideTyping() {
+    clearTimeout(slowTimer);
     typingEl.classList.add('hidden');
+  }
+
+  function setSendMode(mode) {
+    var stopping = mode === 'stop';
+    sendBtn.replaceChildren(svg(stopping ? ICON.stop : ICON.send, 20, stopping ? 0 : 2));
+    if (stopping) sendBtn.querySelector('svg').setAttribute('fill', 'currentColor');
+    sendBtn.classList.toggle('is-stop', stopping);
+    sendBtn.setAttribute('aria-label', stopping ? 'Stop generating' : 'Send question');
+    sendBtn.disabled = stopping ? false : !inputEl.value.trim();
   }
 
   async function sendMessage(text, focus) {
@@ -1124,8 +1165,9 @@
     state.lastQuestion = text;
     state.lastFocus = focus || null;
     state.isWaiting = true;
-    sendBtn.disabled = true;
+    state.abortReason = null;
     inputEl.disabled = true;
+    setSendMode('stop');
     hideToast();
 
     state.lastQuestionEl = addUserMessage(text, trail.slice(0, -1));
@@ -1134,8 +1176,14 @@
     var deckEl = addPendingDeck();
     showTyping();
 
+    var deadline = null;
+
     try {
       state.abortController = new AbortController();
+      deadline = setTimeout(function () {
+        state.abortReason = 'timeout';
+        if (state.abortController) state.abortController.abort();
+      }, CLIENT_DEADLINE_MS);
 
       var body = { message: text, history: state.history.slice(0, -1) };
       if (focus) body.focus = focus;
@@ -1168,16 +1216,36 @@
       if (newThreadBtn) newThreadBtn.hidden = false;
     } catch (err) {
       state.history.pop();   // no assistant turn was recorded
+
       if (err.name === 'AbortError') {
-        deckEl.remove();
+        if (state.abortReason === 'timeout') {
+          // Distinguish "gave up" from "you stopped it" — they need different
+          // responses from the reader.
+          deckEl.classList.remove('is-pending');
+          deckEl.replaceChildren(el('p', 'deck-error',
+            'This took longer than ' + Math.round(CLIENT_DEADLINE_MS / 1000)
+            + ' seconds and was given up on. The model may be overloaded.'));
+          showToast('The request timed out', {
+            label: 'Try again',
+            cb: function () { deckEl.remove(); sendMessage(text, focus); },
+          });
+        } else {
+          // Stopped deliberately: leave no wreckage behind.
+          if (state.lastQuestionEl) state.lastQuestionEl.remove();
+          state.lastQuestionEl = null;
+          deckEl.remove();
+        }
         return;
       }
+
       deckEl.classList.remove('is-pending');
       deckEl.replaceChildren(el('p', 'deck-error', err.message || 'Something went wrong.'));
     } finally {
+      clearTimeout(deadline);
       state.isWaiting = false;
-      sendBtn.disabled = !inputEl.value.trim();
+      state.abortReason = null;
       inputEl.disabled = false;
+      setSendMode('send');
       inputEl.focus();
       hideTyping();
       state.abortController = null;
@@ -1187,14 +1255,20 @@
   /* ── input ─────────────────────────────────────────────────────────── */
 
   function handleInput() {
-    sendBtn.disabled = !inputEl.value.trim() || state.isWaiting;
+    if (!state.isWaiting) sendBtn.disabled = !inputEl.value.trim();
     inputEl.style.height = 'auto';
     inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
   }
 
   function submit() {
+    // While a deck is in flight the same button is the Stop control.
+    if (state.isWaiting) {
+      state.abortReason = 'user';
+      if (state.abortController) state.abortController.abort();
+      return;
+    }
     var text = inputEl.value.trim();
-    if (!text || state.isWaiting) return;
+    if (!text) return;
     inputEl.value = '';
     inputEl.style.height = 'auto';
     sendBtn.disabled = true;
