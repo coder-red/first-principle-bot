@@ -148,8 +148,22 @@ All optional except the key. See `.env.example`.
 python -m pytest tests/ -q
 ```
 
-Covers JSON extraction from messy model output, deck normalization, request
-validation, drill-down focus injection, and the model-failure hints.
+Covers JSON extraction from messy model output, deck normalization, chain
+validation and the repair pass, request validation, drill-down focus injection,
+question reframing, and the model-failure hints.
+
+```bash
+python main.py                     # one shell
+python tests/browser/run_all.py    # another
+```
+
+Six suites that drive the real UI in a real browser. They exist because several
+bugs here were invisible to the Python tests and to reading the code — a deck
+that locked up when a frame was throttled, chip colours leaking onto the depth
+rail, peek cards rendering inside the card instead of below it, regenerate
+corrupting the stored thread only when combined with persistence. See
+[tests/browser/README.md](tests/browser/README.md). No API key needed; they stub
+`/api/chat`.
 
 ## Security
 
@@ -168,7 +182,8 @@ main.py              FastAPI app, the deck prompt, validation, repair, drill-dow
 static/index.html    Shell only
 static/script.js     Transcript, deck modal, prose view, follow-ups
 static/style.css     Design tokens, light/dark themes, card and prose styles
-tests/test_deck.py   Deck contract and request-validation tests
+tests/test_deck.py   Deck contract, validation and request tests
+tests/browser/       End-to-end suites driving the real UI
 skill/               The method, packaged as a portable Claude skill
 ```
 
