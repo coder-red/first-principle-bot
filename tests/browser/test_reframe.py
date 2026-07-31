@@ -53,7 +53,7 @@ with sync_playwright() as p:
                         pg.locator(".deck-question").count()==1)[2])())
         pg.keyboard.press("Escape")
         check("no JS errors", not errs, "; ".join(errs[:2]))
-        pg.screenshot(path=f"reframe-{name.split()[0]}.png")
+        pg.screenshot(path=os.path.join(SHOTS, f"reframe-{name.split()[0]}.png"))
         pg.close()
     b.close()
 print("\n"+("ALL PASSED" if not fails else f"{len(fails)} FAILED: {sorted(set(fails))}"))
