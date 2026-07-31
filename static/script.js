@@ -923,7 +923,15 @@
     head.appendChild(meta);
     block.appendChild(head);
 
-    if (deck.question) block.appendChild(el('p', 'answer-question', deck.question));
+    /* The thread already shows what was asked. Repeating the deck's wording of
+       it is noise unless the model actually reframed the question — which only
+       the model can tell us, so it says so in the payload. */
+    if (deck.question && deck.reframed) {
+      var reframe = el('div', 'answer-reframe');
+      reframe.appendChild(el('span', 'answer-reframe-label', 'Reading this as'));
+      reframe.appendChild(el('p', 'answer-question', deck.question));
+      block.appendChild(reframe);
+    }
 
     /* chain at a glance — each tick is the card's tag at the card's depth */
     var rail = el('div', 'answer-rail');

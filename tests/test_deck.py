@@ -11,7 +11,9 @@ from main import (
     Focus,
     build_messages,
     extract_json_object,
+    finalize,
     focus_instruction,
+    is_verbatim_restatement,
     make_error_deck,
     model_failure_hint,
     normalize_deck,
@@ -314,6 +316,62 @@ def test_repair_instruction_quotes_every_violation():
     text = repair_instruction(["rule one broken", "rule two broken"])
     assert "rule one broken" in text and "rule two broken" in text
     assert "only the JSON object" in text
+
+
+# ── reframing ──────────────────────────────────────────────────────────────
+
+def test_reframed_defaults_to_false():
+    assert normalize_deck(minimal_deck())["reframed"] is False
+
+
+@pytest.mark.parametrize("raw,expected", [
+    (True, True), (False, False), ("true", False), (1, False), (None, False),
+])
+def test_reframed_is_strictly_boolean(raw, expected):
+    """Only a real JSON true counts; a truthy string must not promote a reframe."""
+    data = minimal_deck()
+    data["reframed"] = raw
+    assert normalize_deck(data)["reframed"] is expected
+
+
+def test_verbatim_restatement_detected_despite_rewording():
+    assert is_verbatim_restatement("why is the sky blue", "Why is the sky blue?")
+    assert is_verbatim_restatement("What is money?", "what is money")
+
+
+def test_a_genuine_reframe_is_not_treated_as_verbatim():
+    assert not is_verbatim_restatement(
+        "why is glass transparent?",
+        "What must be true of a material for light to pass through it?")
+
+
+def test_reworded_question_is_not_flagged_verbatim():
+    """Word overlap cannot judge this pair, so the check must not try."""
+    assert not is_verbatim_restatement(
+        "how does a magnet pull on something it never touches?",
+        "How does a magnet exert force across empty space?")
+
+
+def test_finalize_demotes_a_reframe_claim_on_a_retyped_question():
+    deck = normalize_deck(dict(minimal_deck(), reframed=True,
+                               question="Why is the sky blue?"))
+    finalize(deck, ChatRequest(message="why is the sky blue"))
+    assert deck["reframed"] is False
+
+
+def test_finalize_keeps_a_real_reframe():
+    deck = normalize_deck(dict(
+        minimal_deck(), reframed=True,
+        question="What must be true for money to function at all?"))
+    finalize(deck, ChatRequest(message="What is money, really?"))
+    assert deck["reframed"] is True
+
+
+def test_endpoint_demotes_a_retyped_reframe(client, with_key, monkeypatch):
+    deck = dict(sound_deck(), reframed=True, question="Why is the sky blue?")
+    use_stub(monkeypatch, [deck])
+    body = client.post("/api/chat", json={"message": "why is the sky blue"}).json()
+    assert body["reframed"] is False
 
 
 # ── request validation ─────────────────────────────────────────────────────

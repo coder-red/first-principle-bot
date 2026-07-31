@@ -248,6 +248,7 @@ def normalize_deck(data: dict) -> dict:
     return {
         "topic": _text(data.get("topic"), "Flashcards"),
         "question": _text(data.get("question"), cards[0]["question"]),
+        "reframed": data.get("reframed") is True,
         "cards": cards,
         "followups": _text_list(data.get("followups"), limit=3),
         "verified": not hard,
@@ -275,6 +276,7 @@ def make_error_deck(topic: str, error: str) -> dict:
             },
         ],
         "followups": [],
+        "reframed": False,
         "verified": False,
         "issues": [],
     }
@@ -321,6 +323,7 @@ Return ONLY valid JSON. No Markdown, no code fences, no prose outside the object
 {
   "topic": "short topic title",
   "question": "the single precise question this deck answers",
+  "reframed": false,
   "cards": [
     {
       "phase": "question | descent | bedrock | rebuild | insight",
@@ -352,6 +355,9 @@ Produce 6 or 7 cards in this order:
 4. ONE OR TWO cards with phase "rebuild", level counting back DOWN toward 1. Reconstruct the original topic using ONLY ATOMIC and VERIFIED material. If a step needs a CONVENTION, say so explicitly in "explanation" and tag that card CONVENTION.
 
 5. ONE card with phase "insight", level 0. What becomes visible now that the conventions are gone and that analogical thinking would have missed.
+
+══ REFRAMED ══
+Set "reframed" to true ONLY if "question" asks something materially different from what the user actually typed — you narrowed a vague prompt, corrected a false premise, or replaced the surface question with the one that has to be answered first. Set it to false when "question" is the user's own question reworded, expanded or made more formal, however different the wording looks. Rewording is not reframing. When in doubt, false.
 
 ══ FOLLOWUPS ══
 End with 2-3 "followups": short, genuinely curious questions this deck opens up. They must be answerable by the same decomposition method, and they must be interesting to a curious person — not homework restatements of the topic. Never repeat the deck's own question.
@@ -425,6 +431,35 @@ class EmptyCompletion(Exception):
     """The provider answered, but with no usable content."""
 
 
+QUESTION_STOPWORDS = frozenset(
+    "a an the is are was were do does did why what how when where which who of in on at "
+    "to for from with that this it its be been being actually really than rather any "
+    "other and or but so if we you i us not no there their they can could would should".split()
+)
+
+
+def _content_words(text: str) -> frozenset:
+    cleaned = "".join(c.lower() if (c.isalnum() or c.isspace()) else " " for c in text)
+    return frozenset(w for w in cleaned.split() if len(w) > 2 and w not in QUESTION_STOPWORDS)
+
+
+def is_verbatim_restatement(asked: str, restated: str) -> bool:
+    """Catch a deck claiming to have reframed a question it merely retyped.
+
+    Deliberately strict. Word overlap cannot tell a rewording from a genuine
+    reframe — "how does a magnet pull on something it never touches" and "how
+    does a magnet exert force across empty space" share no content words yet
+    mean the same thing, while "why is glass transparent" and "what must be
+    true of a material for light to pass through it" also share none and do
+    not. Only the model knows which it did, so this checks the one case that
+    needs no judgement: the words are the same.
+    """
+    asked_words, restated_words = _content_words(asked), _content_words(restated)
+    if not asked_words or not restated_words:
+        return False
+    return asked_words == restated_words
+
+
 def repair_instruction(violations: List[str]) -> str:
     lines = ["That deck breaks the decomposition contract:"]
     lines += ["- " + v for v in violations]
@@ -458,6 +493,12 @@ async def request_deck(client: AsyncOpenAI, model: str, messages: List[dict]) ->
     return normalize_deck(extract_json_object(content)), content
 
 
+def finalize(deck: dict, req: ChatRequest) -> dict:
+    if deck.get("reframed") and is_verbatim_restatement(req.message, deck["question"]):
+        deck["reframed"] = False
+    return deck
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest):
     config = get_config()
@@ -477,7 +518,7 @@ async def chat(req: ChatRequest):
         try:
             deck, raw = await request_deck(client, model, messages)
             if deck["verified"]:
-                return json_response(deck)
+                return json_response(finalize(deck, req))
 
             # One repair pass, quoting the exact rules broken. Worth a single
             # extra call: an unsound chain is the one thing this app cannot
@@ -489,14 +530,14 @@ async def chat(req: ChatRequest):
                     {"role": "user", "content": repair_instruction(hard)},
                 ])
                 if repaired["verified"]:
-                    return json_response(repaired)
+                    return json_response(finalize(repaired, req))
                 if len(repaired["issues"]) < len(deck["issues"]):
                     deck = repaired
             except Exception:
                 pass  # keep the original deck; it is already flagged unverified
 
             # Still unsound. Return it labelled rather than pretending it passed.
-            return json_response(deck)
+            return json_response(finalize(deck, req))
         except EmptyCompletion as exc:
             last_error = str(exc)
         except (json.JSONDecodeError, ValueError) as exc:

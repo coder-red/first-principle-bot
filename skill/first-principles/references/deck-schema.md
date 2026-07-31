@@ -22,9 +22,22 @@ rebuilding the explanation from that bedrock alone.
       "takeaway": "one concise memory hook"
     }
   ],
-  "followups": ["a genuinely curious next question", "another"]
+  "followups": ["a genuinely curious next question", "another"],
+  "reframed": false
 }
 ```
+
+`reframed` is true **only** when `question` asks something materially different
+from what the user typed — you narrowed a vague prompt, corrected a false
+premise, or replaced the surface question with the one that must be answered
+first. Rewording, expanding or formalising the same question is not reframing;
+set it false however different the wording looks. When in doubt, false.
+
+Only you can judge this. Word overlap cannot: "how does a magnet pull on
+something it never touches" and "how does a magnet exert force across empty
+space" share no significant words yet ask the same thing, while "why is glass
+transparent" and "what must be true of a material for light to pass through it"
+also share none and do not.
 
 ## Card order
 
