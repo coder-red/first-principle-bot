@@ -45,7 +45,7 @@ with sync_playwright() as p:
         first = page.inner_text(".suggestion-chip")
         page.click("#shuffle-suggestions"); page.wait_for_timeout(200)
         check("shuffle changes suggestions", page.inner_text(".suggestion-chip") != first)
-        if width > 700: page.screenshot(path=f"{OUT}/v2-welcome-{label}.png")
+        if width > 700: page.screenshot(path=os.path.join(OUT, f"v2-welcome-{label}.png"))
 
         page.fill("#message-input", "why is the sky blue")
         page.click("#send-btn")
@@ -64,7 +64,7 @@ with sync_playwright() as p:
         check("no chat bubbles left", page.locator(".message").count() == 0)
         check("no body h-scroll", page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"),
               f'{page.evaluate("document.documentElement.scrollWidth")} vs {width}')
-        if width > 700: page.screenshot(path=f"{OUT}/v2-transcript-{label}.png")
+        if width > 700: page.screenshot(path=os.path.join(OUT, f"v2-transcript-{label}.png"))
 
         page.click(".open-deck"); page.wait_for_selector(".card-face .card-title")
         check("cards view default", page.is_visible(".view-cards"))
@@ -75,7 +75,7 @@ with sync_playwright() as p:
         for i in range(len(DECK["cards"])):
             page.wait_for_timeout(300)
             titles.append(page.inner_text(".card-title"))
-            if i == 4 and width > 700: page.screenshot(path=f"{OUT}/v2-bedrock-{label}.png")
+            if i == 4 and width > 700: page.screenshot(path=os.path.join(OUT, f"v2-bedrock-{label}.png"))
             page.keyboard.press("ArrowRight")
         check("keyboard walks every card", titles == [c["title"] for c in DECK["cards"]])
 
@@ -98,7 +98,7 @@ with sync_playwright() as p:
         check("prose has no raw phase banners", "══" not in page.inner_text(".view-prose"))
         check("prose line length capped",
               page.evaluate("Math.round(document.querySelector('.prose-explanation').getBoundingClientRect().width)") < 700)
-        if width > 700: page.screenshot(path=f"{OUT}/v2-prose-{label}.png")
+        if width > 700: page.screenshot(path=os.path.join(OUT, f"v2-prose-{label}.png"))
 
         # ask-about-this-card sends focus
         page.fill(".ask-input", "does this apply underwater?")
