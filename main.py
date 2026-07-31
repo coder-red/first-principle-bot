@@ -28,6 +28,11 @@ DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
 
 DECK_MAX_TOKENS = int(os.environ.get("DECK_MAX_TOKENS", 4000))
 
+# Without this a stalled provider holds the request open forever, and the
+# reader watches a shimmer with no way to tell slow from dead. Decks routinely
+# take 25-35s, so the ceiling has to sit well above that.
+DECK_TIMEOUT_SECONDS = float(os.environ.get("DECK_TIMEOUT_SECONDS", 90))
+
 ROUTER_MODELS = ("openrouter/auto", "openrouter/free")
 
 PHASES = ("question", "descent", "bedrock", "rebuild", "insight")
@@ -479,6 +484,7 @@ async def request_deck(client: AsyncOpenAI, model: str, messages: List[dict]) ->
         temperature=0.4,
         max_tokens=DECK_MAX_TOKENS,
         response_format={"type": "json_object"},
+        timeout=DECK_TIMEOUT_SECONDS,
     )
     choice = response.choices[0] if response.choices else None
     content = choice.message.content if choice else ""
