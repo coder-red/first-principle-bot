@@ -1,0 +1,45 @@
+# Render blueprint. Create the service from this file, then set
+# OPENROUTER_API_KEY in the dashboard — it is deliberately not here.
+#
+# A web service, not a serverless function, for two reasons: a deck streams for
+# ~30s, and EXPLORE_POOLS lives in process memory. Both break on functions.
+services:
+  - type: web
+    name: first-principle-bot
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /api/health
+
+    # The free plan runs a single instance, which is what the in-memory
+    # explore pool and rate limiter assume. Raising this makes both
+    # per-instance: the pool would repeat questions and the limits would
+    # multiply by the instance count.
+    numInstances: 1
+
+    envVars:
+      - key: OPENROUTER_API_KEY
+        sync: false          # set in the dashboard, never in the repo
+
+      # Defaults are for local dev and are wrong in a container: the app would
+      # bind to loopback only, and the reloader would run a second process.
+      - key: HOST
+        value: 0.0.0.0
+      - key: RELOAD
+        value: "0"
+
+      # Shown in the OpenRouter dashboard against every request.
+      - key: PUBLIC_URL
+        value: https://first-principle-bot.onrender.com
+
+      # Per-IP ceilings. A deck is the expensive call; sectors only cost one
+      # when the pool actually needs topping up.
+      - key: DECK_RATE_LIMIT
+        value: "8"
+      - key: DECK_RATE_WINDOW
+        value: "300"
+      - key: EXPLORE_RATE_LIMIT
+        value: "20"
+      - key: EXPLORE_RATE_WINDOW
+        value: "300"
