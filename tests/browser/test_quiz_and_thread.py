@@ -1,12 +1,17 @@
 import copy, json, sys, urllib.request
 from playwright.sync_api import sync_playwright
+
+
+def ndjson_done(deck):
+    """One done event — the shape the streaming client expects."""
+    return json.dumps({"type": "done", "deck": deck}) + chr(10)
 import os
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_shots")
 os.makedirs(SHOTS, exist_ok=True)
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-BASE="http://127.0.0.1:8000"
+BASE = os.environ.get("FP_BASE_URL", "http://127.0.0.1:8000")
 GOOD=json.loads(urllib.request.urlopen(BASE+"/api/sample-deck").read())
 BAD=copy.deepcopy(GOOD); BAD["verified"]=False
 BAD["issues"]=['Descent card "X" is tagged ATOMIC.']
@@ -21,8 +26,8 @@ def page_with(b, deck, theme="dark", w=1280):
     errs=[]
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.on("console", lambda m: errs.append(m.text) if m.type=="error" else None)
-    def h(route): route.fulfill(status=200, content_type="application/json", body=json.dumps(deck))
-    pg.route("**/api/chat", h)
+    def h(route): route.fulfill(status=200, content_type="application/x-ndjson", body=ndjson_done(deck))
+    pg.route("**/api/chat/stream", h)
     pg.add_init_script(f"localStorage.setItem('fp_theme','{theme}')")
     return pg, errs
 

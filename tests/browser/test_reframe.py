@@ -1,12 +1,17 @@
 import copy, json, sys, urllib.request
 from playwright.sync_api import sync_playwright
+
+
+def ndjson_done(deck):
+    """One done event — the shape the streaming client expects."""
+    return json.dumps({"type": "done", "deck": deck}) + chr(10)
 import os
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_shots")
 os.makedirs(SHOTS, exist_ok=True)
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-BASE="http://127.0.0.1:8000"
+BASE = os.environ.get("FP_BASE_URL", "http://127.0.0.1:8000")
 BASE_DECK=json.loads(urllib.request.urlopen(BASE+"/api/sample-deck").read())
 
 ECHO=copy.deepcopy(BASE_DECK); ECHO["reframed"]=False
@@ -27,9 +32,9 @@ with sync_playwright() as p:
         def h(route, d=None): pass
         def make(d):
             def handler(route):
-                route.fulfill(status=200, content_type="application/json", body=json.dumps(d))
+                route.fulfill(status=200, content_type="application/x-ndjson", body=ndjson_done(d))
             return handler
-        pg.route("**/api/chat", make(deck))
+        pg.route("**/api/chat/stream", make(deck))
         pg.goto(BASE); pg.wait_for_selector("#message-input")
         pg.evaluate("localStorage.removeItem('fp_thread_v1')"); pg.reload(); pg.wait_for_selector("#message-input")
         pg.fill("#message-input","why is the sky blue"); pg.click("#send-btn")
