@@ -573,7 +573,9 @@ def test_missing_key_returns_error_deck_not_500(client, no_key):
     assert response.status_code == 200
     deck = response.json()
     assert deck["cards"][0]["title"] == "I Could Not Build This Deck"
-    assert "OPENROUTER_API_KEY" in deck["cards"][0]["explanation"]
+    # The message has to say what to actually set, not just that something is
+    # missing — this is the first thing a new deploy hits.
+    assert "PROVIDERS" in deck["cards"][0]["explanation"]
 
 
 def test_health_reports_config(client, monkeypatch):

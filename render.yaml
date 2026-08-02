@@ -19,8 +19,25 @@ services:
     numInstances: 1
 
     envVars:
+      # Free tiers are capped per account per day, so chain several: when the
+      # first has spent its allowance the next takes over. Any provider that
+      # is not fully configured is skipped.
+      - key: PROVIDERS
+        value: groq,gemini,openrouter
+
+      # All keys are set in the dashboard, never in the repo.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        sync: false
       - key: OPENROUTER_API_KEY
-        sync: false          # set in the dashboard, never in the repo
+        sync: false
+      - key: OPENROUTER_MODEL
+        sync: false
 
       # Defaults are for local dev and are wrong in a container: the app would
       # bind to loopback only, and the reloader would run a second process.
