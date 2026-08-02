@@ -36,6 +36,7 @@
   var mainEl = document.querySelector('main');
   var suggestionsEl = $('#suggestions');
   var shuffleBtn = $('#shuffle-suggestions');
+  var railEl = $('#sector-rail');
   var activeModalClose = null;
 
   var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -94,10 +95,15 @@
     localStorage.setItem('fp_theme', t);
   }
 
+  /* The toggle is gone from the header, but the stored preference is still
+     honoured — light is reachable by setting fp_theme, which is what the
+     browser suites do. */
   setTheme(localStorage.getItem('fp_theme') || 'dark');
-  themeBtn.addEventListener('click', function () {
-    setTheme(getTheme() === 'dark' ? 'light' : 'dark');
-  });
+  if (themeBtn) {
+    themeBtn.addEventListener('click', function () {
+      setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+    });
+  }
 
   /* ── toast ─────────────────────────────────────────────────────────── */
 
@@ -147,58 +153,202 @@
   /* ── suggestions ───────────────────────────────────────────────────── */
 
   /* Questions where the conventional answer is itself a convention —
-     decomposing them actually pays off, which is the point of the app.
+     decomposing them actually pays off, which is the point of the app. The
+     hook names the belief the question takes apart, which is the whole reason
+     one of these is worth clicking over a search box.
      No emoji: newer codepoints render as tofu on Windows, and a precise tool
      reads better without them. */
-  var QUESTION_POOL = [
-    'Why do planes actually stay up?',
-    'Why does a mirror flip left to right but not up and down?',
-    'What is money, really?',
-    'What is fire?',
-    'Why can nothing travel faster than light?',
-    'Why do we have to sleep?',
-    'Why does ice float when almost every other solid sinks?',
-    'Why does music sound good?',
-    'Why can you not tickle yourself?',
-    'What is actually moving when electricity flows?',
-    'How do we know the Earth is round without leaving it?',
-    'Why is glass transparent?',
-    'How does a magnet pull on something it never touches?',
-    'Why is the sky blue?',
-    'Why can we not remember being a baby?',
-    'What is time?',
-    'How does anaesthesia switch consciousness off?',
-    'Why is the sea salty but rivers are not?',
+  var PICKED = [
+    { question: 'Why do planes actually stay up?', hook: 'the equal-transit myth' },
+    { question: 'Why does a mirror flip left to right but not up and down?', hook: 'it does neither' },
+    { question: 'What is money, really?', hook: 'money as a substance' },
+    { question: 'What is fire?', hook: 'fire as a thing' },
+    { question: 'Why can nothing travel faster than light?', hook: 'light as a speed limit' },
+    { question: 'Why do we have to sleep?', hook: 'sleep as rest' },
+    { question: 'Why does ice float when almost every other solid sinks?', hook: 'solids sink' },
+    { question: 'Why does music sound good?', hook: 'beauty as taste' },
+    { question: 'Why can you not tickle yourself?', hook: 'touch as sensation' },
+    { question: 'What is actually moving when electricity flows?', hook: 'current as flow' },
+    { question: 'How do we know the Earth is round without leaving it?', hook: 'seeing is proof' },
+    { question: 'Why is glass transparent?', hook: 'solids block light' },
+    { question: 'How does a magnet pull on something it never touches?', hook: 'action at a distance' },
+    { question: 'Why is the sky blue?', hook: 'the sky as an object' },
+    { question: 'Why can we not remember being a baby?', hook: 'memory as recording' },
+    { question: 'What is time?', hook: 'time as a river' },
+    { question: 'How does anaesthesia switch consciousness off?', hook: 'sleep and anaesthesia' },
+    { question: 'Why is the sea salty but rivers are not?', hook: 'rivers as fresh' },
   ];
 
-  var poolCursor = Math.floor(Math.random() * QUESTION_POOL.length);
+  /* One line-art glyph per sector, keyed by slug. Kept client-side because it
+     is presentation; the server owns the sector list itself. */
+  var SECTOR_GLYPHS = {
+    picked:     'M12 3l2.1 5.4L20 10l-5.9 1.6L12 17l-2.1-5.4L4 10l5.9-1.6z',
+    career:     'M3 8h18v11H3zM8 8V6a2 2 0 012-2h4a2 2 0 012 2v2M3 13h18',
+    health:     'M3 12h4l2-5 3 10 2-5h7',
+    football:   'M12 3a9 9 0 100 18 9 9 0 000-18zM12 7l4.2 3-1.6 5H9.4l-1.6-5z',
+    history:    'M12 3a9 9 0 109 9M12 7v5l3 2M12 3l3 3-3 3',
+    money:      'M12 3v18M8 7h6a3 3 0 010 6H9a3 3 0 000 6h7',
+    mind:       'M9 21v-3a5 5 0 01-2-4V9a5 5 0 0110 0v1h2l-2 3.5V17a2 2 0 01-2 2h-2v2',
+    physics:    'M12 10a2 2 0 100 4 2 2 0 000-4M4.5 8.5c5-3 10-3 15 0M4.5 15.5c5 3 10 3 15 0',
+    technology: 'M7 7h10v10H7zM10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4',
+    everyday:   'M3 11l9-7 9 7v9a1 1 0 01-1 1H4a1 1 0 01-1-1zM9 21v-6h6v6',
+  };
 
-  function renderSuggestions() {
+  var PICKED_SECTOR = { slug: 'picked', label: 'Picked', blurb: 'hand-written' };
+
+  var explore = { slug: 'picked', cursor: 0, busy: false };
+
+  function svgGlyph(slug) {
+    var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', '15');
+    svg.setAttribute('height', '15');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.6');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    svg.setAttribute('aria-hidden', 'true');
+    var path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', SECTOR_GLYPHS[slug] || SECTOR_GLYPHS.picked);
+    svg.appendChild(path);
+    return svg;
+  }
+
+  function renderRail(sectors) {
+    if (!railEl) return;
+    railEl.replaceChildren();
+    sectors.forEach(function (sector) {
+      var pill = el('button', 'sector-pill');
+      pill.type = 'button';
+      pill.setAttribute('role', 'tab');
+      pill.dataset.slug = sector.slug;
+      pill.title = sector.blurb || sector.label;
+      pill.appendChild(svgGlyph(sector.slug));
+      pill.appendChild(el('span', '', sector.label));
+      railEl.appendChild(pill);
+    });
+    markActivePill();
+  }
+
+  function markActivePill() {
+    if (!railEl) return;
+    Array.prototype.forEach.call(railEl.children, function (pill) {
+      var on = pill.dataset.slug === explore.slug;
+      pill.classList.toggle('active', on);
+      pill.setAttribute('aria-selected', on ? 'true' : 'false');
+    });
+  }
+
+  function renderQuestions(items) {
     if (!suggestionsEl) return;
+    suggestionsEl.replaceChildren();
+    items.forEach(function (item) {
+      var card = el('button', 'suggestion-chip');
+      card.type = 'button';
+      card.dataset.prompt = item.question;
+      var body = el('span', 'chip-body');
+      if (item.hook) body.appendChild(el('span', 'chip-hook', item.hook));
+      body.appendChild(el('span', 'chip-text', item.question));
+      card.appendChild(body);
+      card.appendChild(el('span', 'chip-arrow', '→'));
+      suggestionsEl.appendChild(card);
+    });
+    suggestionsEl.classList.remove('reshuffled');
+    void suggestionsEl.offsetWidth;
+    suggestionsEl.classList.add('reshuffled');
+  }
+
+  function renderSkeletons(count) {
+    if (!suggestionsEl) return;
+    suggestionsEl.replaceChildren();
+    for (var i = 0; i < count; i++) {
+      suggestionsEl.appendChild(el('div', 'chip-skeleton'));
+    }
+  }
+
+  function renderExploreNote(message) {
+    if (!suggestionsEl) return;
+    suggestionsEl.replaceChildren();
+    suggestionsEl.appendChild(el('p', 'explore-note', message));
+  }
+
+  function setShuffleLabel(text) {
+    var label = $('#shuffle-label');
+    if (label) label.textContent = text;
+  }
+
+  function showPicked() {
     var picks = [];
     for (var i = 0; i < 4; i++) {
-      picks.push(QUESTION_POOL[(poolCursor + i) % QUESTION_POOL.length]);
+      picks.push(PICKED[(explore.cursor + i) % PICKED.length]);
     }
-    poolCursor = (poolCursor + 4) % QUESTION_POOL.length;
+    explore.cursor = (explore.cursor + 4) % PICKED.length;
+    renderQuestions(picks);
+    setShuffleLabel('Show me others');
+  }
 
-    suggestionsEl.replaceChildren();
-    picks.forEach(function (question) {
-      var chip = el('button', 'suggestion-chip');
-      chip.type = 'button';
-      chip.dataset.prompt = question;
-      chip.appendChild(el('span', 'chip-text', question));
-      chip.appendChild(el('span', 'chip-arrow', '→'));
-      suggestionsEl.appendChild(chip);
+  /* Generated questions cost a model call, so the button says so rather than
+     implying the same instant reshuffle the hand-written list gives. */
+  function loadSector(slug) {
+    if (explore.busy) return;
+    explore.slug = slug;
+    markActivePill();
+
+    if (slug === 'picked') { showPicked(); return; }
+
+    explore.busy = true;
+    if (shuffleBtn) shuffleBtn.disabled = true;
+    setShuffleLabel('Writing questions...');
+    renderSkeletons(6);
+
+    fetch('/api/explore/' + encodeURIComponent(slug))
+      .then(function (r) {
+        if (!r.ok) throw new Error('sector ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (explore.slug !== slug) return;  // a later pill won the race
+        var items = (data && data.questions) || [];
+        if (!items.length) {
+          renderExploreNote('No questions came back for this one. Try another sector, or just ask.');
+        } else {
+          renderQuestions(items);
+        }
+      })
+      .catch(function () {
+        if (explore.slug !== slug) return;
+        renderExploreNote('Could not reach the question writer. Try again, or just ask.');
+      })
+      .finally(function () {
+        explore.busy = false;
+        if (shuffleBtn) shuffleBtn.disabled = false;
+        setShuffleLabel('More questions');
+      });
+  }
+
+  function renderSuggestions() { loadSector(explore.slug); }
+
+  function initExplore() {
+    if (!railEl) return;
+    fetch('/api/explore/sectors')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        renderRail([PICKED_SECTOR].concat((data && data.sectors) || []));
+      })
+      .catch(function () { renderRail([PICKED_SECTOR]); });
+    showPicked();
+  }
+
+  if (railEl) {
+    railEl.addEventListener('click', function (e) {
+      var pill = e.target.closest('.sector-pill');
+      if (pill && pill.dataset.slug) loadSector(pill.dataset.slug);
     });
   }
 
   if (shuffleBtn) {
-    shuffleBtn.addEventListener('click', function () {
-      renderSuggestions();
-      suggestionsEl.classList.remove('reshuffled');
-      void suggestionsEl.offsetWidth;
-      suggestionsEl.classList.add('reshuffled');
-    });
+    shuffleBtn.addEventListener('click', function () { loadSector(explore.slug); });
   }
 
   /* ── epistemic tags ────────────────────────────────────────────────── */
@@ -914,6 +1064,86 @@
     return block;
   }
 
+  /* How far along a deck is, read off the phase of the last card rather than a
+     card count — the total is not known until the deck ends, and a bar that
+     guesses a total then has to jump backwards is worse than no bar. Phases
+     always run question -> descent -> bedrock -> rebuild -> insight, so the
+     phase alone is a truthful position. */
+  function streamProgress(cards) {
+    var last = cards[cards.length - 1];
+    if (!last) return 6;
+    switch (last.phase) {
+      case 'question': return 12;
+      case 'descent':  return Math.min(58, 22 + Number(last.level || 0) * 12);
+      case 'bedrock':  return 70;
+      case 'rebuild':  return 86;
+      case 'insight':  return 96;
+      default:         return 40;
+    }
+  }
+
+  /* The descent, drawn as it is written. Each dot sits at its card's depth, so
+     a deck in flight literally shows the chain going down to bedrock and
+     climbing back out — which is the thing the app is about. */
+  function renderStreamProgress(block, cards) {
+    block.classList.remove('is-pending');
+    block.classList.add('is-streaming');
+    block.replaceChildren();
+
+    block.appendChild(el('span', 'stream-label', 'Decomposing'));
+
+    var bar = el('div', 'stream-bar');
+    var fill = el('div', 'stream-bar-fill');
+    fill.style.width = streamProgress(cards) + '%';
+    bar.appendChild(fill);
+    block.appendChild(bar);
+
+    var row = el('div', 'stream-dots');
+    cards.forEach(function (card) {
+      var dot = el('span', 'stream-dot');
+      if (card.phase === 'bedrock') dot.classList.add('is-bedrock');
+      dot.style.transform = 'translateY(' + (Number(card.level || 0) * 5) + 'px)';
+      row.appendChild(dot);
+    });
+    block.appendChild(row);
+
+    var latest = cards[cards.length - 1];
+    if (latest) {
+      block.appendChild(el('p', 'stream-current',
+        latest.title || latest.principle || ''));
+    }
+    scrollToBottom();
+  }
+
+  /* NDJSON: one event per line. A chunk can split a line anywhere, so the
+     trailing fragment is held back until the rest of it arrives. */
+  async function readDeckStream(response, onCard) {
+    var reader = response.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+    var deck = null;
+
+    function handle(line) {
+      if (!line.trim()) return;
+      var event;
+      try { event = JSON.parse(line); } catch (e) { return; }
+      if (event.type === 'card' && event.card) onCard(event.card);
+      else if (event.type === 'done') deck = event.deck;
+    }
+
+    for (;;) {
+      var step = await reader.read();
+      if (step.done) break;
+      buffer += decoder.decode(step.value, { stream: true });
+      var lines = buffer.split('\n');
+      buffer = lines.pop();
+      lines.forEach(handle);
+    }
+    handle(buffer);
+
+    return deck;
+  }
+
   /* The transcript shows the ANSWER, not a teaser. The chain is visible at a
      glance and the bedrock — the thing the whole deck exists to reach — is
      stated outright. The modal is for reading in depth, not for finding out
@@ -1188,7 +1418,7 @@
       var body = { message: text, history: state.history.slice(0, -1) };
       if (focus) body.focus = focus;
 
-      var response = await fetch('/api/chat', {
+      var response = await fetch('/api/chat/stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -1205,7 +1435,18 @@
         throw new Error(detail);
       }
 
-      var deck = await response.json();
+      // Cards render as they close; the deck that arrives last is the one that
+      // has been validated, and it is what finally gets rendered.
+      var streamed = [];
+      var deck = await readDeckStream(response, function (card) {
+        if (!streamed.length) hideTyping();
+        streamed.push(card);
+        renderStreamProgress(deckEl, streamed);
+      });
+
+      if (!deck) throw new Error('The connection closed before the deck finished.');
+
+      deckEl.classList.remove('is-streaming');
       renderDeck(deckEl, deck);
       state.history.push({ role: 'assistant', content: deckSummary(deck) });
       addRegenerateButton(deckEl);
@@ -1354,7 +1595,7 @@
     });
   }
 
-  renderSuggestions();
+  initExplore();
   handleInput();
 
   if (restoreThread()) {

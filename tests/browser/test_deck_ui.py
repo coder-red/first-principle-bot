@@ -7,7 +7,12 @@ os.makedirs(SHOTS, exist_ok=True)
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from playwright.sync_api import sync_playwright
 
-BASE = "http://127.0.0.1:8000"
+
+def ndjson_done(deck):
+    """One done event — the shape the streaming client expects."""
+    return json.dumps({"type": "done", "deck": deck}) + chr(10)
+
+BASE = os.environ.get("FP_BASE_URL", "http://127.0.0.1:8000")
 DECK = json.loads(urllib.request.urlopen(BASE + "/api/sample-deck").read())
 OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "_shots")
 
@@ -26,8 +31,8 @@ def new_page(browser, theme, width, height=860):
     def handler(route):
         try: bodies.append(json.loads(route.request.post_data or "{}"))
         except Exception: bodies.append({})
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(DECK))
-    page.route("**/api/chat", handler)
+        route.fulfill(status=200, content_type="application/x-ndjson", body=ndjson_done(DECK))
+    page.route("**/api/chat/stream", handler)
     page.add_init_script(f"localStorage.setItem('fp_theme','{theme}')")
     page.goto(BASE); page.wait_for_selector("#message-input")
     return page, errors, bodies

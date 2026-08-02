@@ -1,11 +1,11 @@
 import os
 import json
 from functools import lru_cache
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import Response, FileResponse
+from fastapi.responses import Response, FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from openai import AsyncOpenAI
 import uvicorn
@@ -59,6 +59,10 @@ def get_config() -> dict:
             for m in os.environ.get("FALLBACK_MODELS", DEFAULT_FALLBACKS).split(",")
             if m.strip()
         ],
+        # Writing a question is a far smaller job than decomposing one, so it
+        # defaults to the same cheap model and can be pointed somewhere cheaper.
+        "questions_model": os.environ.get("QUESTIONS_MODEL", "")
+        or os.environ.get("MODEL", DEFAULT_MODEL),
     }
 
 
@@ -87,6 +91,87 @@ def extract_json_object(content: str) -> dict:
         if start >= 0 and end > start:
             return json.loads(cleaned[start:end + 1])
         raise
+
+
+def _cards_array_start(partial: str) -> int:
+    """Index just past the `[` that opens the top-level `cards` array, or -1.
+
+    Scans string tokens properly rather than searching for the substring, so a
+    topic like "how do playing cards work" is not mistaken for the key.
+    """
+    i, n = 0, len(partial)
+    while i < n:
+        if partial[i] != '"':
+            i += 1
+            continue
+
+        # Read to the end of this string token, honouring escapes.
+        j, escaped = i + 1, False
+        while j < n:
+            if escaped:
+                escaped = False
+            elif partial[j] == "\\":
+                escaped = True
+            elif partial[j] == '"':
+                break
+            j += 1
+        if j >= n:
+            return -1  # string never closed; nothing further is trustworthy
+
+        token = partial[i + 1:j]
+        k = j + 1
+        while k < n and partial[k].isspace():
+            k += 1
+        if token == "cards" and k < n and partial[k] == ":":
+            k += 1
+            while k < n and partial[k].isspace():
+                k += 1
+            return k + 1 if k < n and partial[k] == "[" else -1
+        i = j + 1
+    return -1
+
+
+def complete_cards(partial: str) -> List[dict]:
+    """Every fully-closed card object in a deck whose JSON is still arriving.
+
+    The model emits cards in narrative order, so this is what lets the client
+    render the descent while the rebuild is still being written.
+    """
+    start = _cards_array_start(partial)
+    if start < 0:
+        return []
+
+    cards: List[dict] = []
+    depth, obj_start = 0, -1
+    in_string, escaped = False, False
+
+    for i in range(start, len(partial)):
+        ch = partial[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+        elif ch == '"':
+            in_string = True
+        elif ch == "{":
+            if depth == 0:
+                obj_start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and obj_start >= 0:
+                try:
+                    cards.append(json.loads(partial[obj_start:i + 1]))
+                except json.JSONDecodeError:
+                    pass  # not yet parseable; a later chunk may complete it
+                obj_start = -1
+        elif ch == "]" and depth == 0:
+            break  # the array closed; followups start here
+
+    return cards
 
 
 def _text(value, fallback: str = "") -> str:
@@ -552,6 +637,288 @@ async def chat(req: ChatRequest):
             last_error = f"{model}: {exc}"
 
     return json_response(make_error_deck(req.message, f"Deck generation failed. {last_error}"))
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# EXPLORE — a question worth decomposing, for people who cannot think of one.
+#
+# The blank box is the real bottleneck in this app: the method is sharp, but
+# composing a question whose conventional answer is itself a convention is a
+# skill. So the model writes them, per sector, and no question is served twice.
+# ══════════════════════════════════════════════════════════════════════════
+
+SECTORS = [
+    {"slug": "career",     "label": "Career",     "blurb": "work, money, status"},
+    {"slug": "health",     "label": "Health",     "blurb": "the body, sleep, food"},
+    {"slug": "football",   "label": "Football",   "blurb": "the game, the physics"},
+    {"slug": "history",    "label": "History",    "blurb": "how we got here"},
+    {"slug": "money",      "label": "Money",      "blurb": "value, price, debt"},
+    {"slug": "mind",       "label": "Mind",       "blurb": "memory, belief, self"},
+    {"slug": "physics",    "label": "Physics",    "blurb": "matter, light, time"},
+    {"slug": "technology", "label": "Technology", "blurb": "machines that think"},
+    {"slug": "everyday",   "label": "Everyday",   "blurb": "the ordinary, examined"},
+]
+
+# How many to show at once, and the mark below which the pool is topped up.
+EXPLORE_PAGE = 6
+EXPLORE_LOW_WATER = 6
+EXPLORE_BATCH = 12
+
+
+def sector_by_slug(slug: str) -> Optional[dict]:
+    return next((s for s in SECTORS if s["slug"] == slug), None)
+
+
+def _looks_like_a_question(text: str) -> bool:
+    """A topic heading is not a question, and the deck prompt needs a question."""
+    return text.endswith("?") and len(text) >= 12
+
+
+def normalize_questions(raw) -> List[dict]:
+    """Keep the entries that clear the bar; drop the rest silently.
+
+    The generator is a cheap model and will return headings, fragments and the
+    occasional bare string. None of that is worth showing.
+    """
+    if not isinstance(raw, list):
+        return []
+
+    out = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        question = _text(item.get("question"))
+        if not _looks_like_a_question(question):
+            continue
+        out.append({"question": question, "hook": _text(item.get("hook"))})
+    return out
+
+
+def _key(question: str) -> str:
+    return " ".join(question.lower().split())
+
+
+class ExplorePool:
+    """Questions waiting to be shown for one sector, and every one already
+    shown. The generator is asked to avoid repeats and will repeat anyway, so
+    the pool is the backstop rather than the prompt."""
+
+    def __init__(self):
+        self._waiting: List[dict] = []
+        self._served: List[str] = []
+        self._seen: set = set()
+
+    def add(self, questions: List[dict]) -> None:
+        for item in questions:
+            key = _key(item["question"])
+            if key in self._seen:
+                continue
+            self._seen.add(key)
+            self._waiting.append(item)
+
+    def take(self, count: int) -> List[dict]:
+        taken, self._waiting = self._waiting[:count], self._waiting[count:]
+        self._served.extend(item["question"] for item in taken)
+        return taken
+
+    def needs_refill(self, low_water: int) -> bool:
+        return len(self._waiting) < low_water
+
+    def avoid_list(self, limit: int = 40) -> List[str]:
+        """The most recently served questions, to steer the next batch away."""
+        return self._served[-limit:]
+
+
+EXPLORE_POOLS: Dict[str, ExplorePool] = {}
+
+
+QUESTIONS_SYSTEM = """You write questions for a tool that decomposes things to first principles.
+
+A good question here is one where the conventional answer is ITSELF a convention — where the thing most people would say is a habit of speech rather than a fact. Decomposing it has to actually pay off.
+
+Good: "Why do planes actually stay up?" (the equal-transit story is wrong)
+Good: "What is money, really?" (a shared belief, not a substance)
+Good: "Why does a mirror flip left to right but not up and down?" (it does neither)
+Bad: "How does inflation work?" (a topic, not a question with a convention inside it)
+Bad: "What are the benefits of sleep?" (homework, and the answer is a list)
+
+Each question must be answerable by decomposing to physical law, logical necessity or definitional truth. A curious 16-year-old must understand the question without a glossary.
+
+Return ONLY a JSON object:
+{"questions": [{"question": "...", "hook": "..."}]}
+
+"hook" is at most five words naming the belief the question is about to take apart — "the equal-transit myth", "money as a substance". Lowercase, no final period. It is a label, not a sentence."""
+
+
+async def generate_questions(sector: dict, avoid: List[str], count: int) -> List[dict]:
+    config = get_config()
+    if not config["api_key"]:
+        return []
+
+    client = get_client(config["api_key"], config["endpoint"])
+    ask = (
+        f"Sector: {sector['label']} — {sector['blurb']}.\n"
+        f"Write {count} questions in this sector."
+    )
+    if avoid:
+        listed = "\n".join(f"- {q}" for q in avoid)
+        ask += f"\n\nDo not write any of these, or a rewording of them:\n{listed}"
+
+    response = await client.chat.completions.create(
+        model=config["questions_model"],
+        messages=[
+            {"role": "system", "content": QUESTIONS_SYSTEM},
+            {"role": "user", "content": ask},
+        ],
+        stream=False,
+        temperature=1.0,  # variety matters more than precision for a question list
+        max_tokens=1200,
+        response_format={"type": "json_object"},
+        timeout=45,
+    )
+    choice = response.choices[0] if response.choices else None
+    content = choice.message.content if choice else ""
+    if not content or not content.strip():
+        return []
+
+    return normalize_questions(extract_json_object(content).get("questions"))
+
+
+@app.get("/api/explore/sectors")
+async def explore_sectors():
+    return json_response({"sectors": SECTORS})
+
+
+@app.get("/api/explore/{slug}")
+async def explore_sector(slug: str):
+    sector = sector_by_slug(slug)
+    if sector is None:
+        raise HTTPException(status_code=404, detail=f"Unknown sector: {slug}")
+
+    pool = EXPLORE_POOLS.setdefault(slug, ExplorePool())
+    if pool.needs_refill(EXPLORE_LOW_WATER):
+        try:
+            pool.add(await generate_questions(sector, pool.avoid_list(), EXPLORE_BATCH))
+        except Exception:
+            # A sector that cannot generate shows nothing and stays browsable.
+            # The rest of the page is unaffected.
+            pass
+
+    return json_response({"sector": sector, "questions": pool.take(EXPLORE_PAGE)})
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# STREAMING — the same deck, delivered as it is written.
+#
+# A deck takes 25-35s, and a spinner for that long reads as a hang. The model
+# emits cards in narrative order, so they can be shown as they close: the
+# descent appears while the rebuild is still being written. One call, same
+# cost, same final deck. The authoritative deck is sent last because a chain
+# cannot be validated until it is finished.
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def _ndjson(payload: dict) -> str:
+    return json.dumps(payload, ensure_ascii=False) + "\n"
+
+
+async def stream_cards(client: AsyncOpenAI, model: str, messages: List[dict]):
+    """Yield ("card", card) as each one closes, then ("raw", full_text)."""
+    stream = await client.chat.completions.create(
+        model=model,
+        messages=messages,
+        stream=True,
+        temperature=0.4,
+        max_tokens=DECK_MAX_TOKENS,
+        response_format={"type": "json_object"},
+        timeout=DECK_TIMEOUT_SECONDS,
+    )
+
+    accumulated, sent = "", 0
+    async for chunk in stream:
+        choices = getattr(chunk, "choices", None)
+        if not choices:
+            continue
+        delta = getattr(choices[0], "delta", None)
+        piece = getattr(delta, "content", None) if delta is not None else None
+        if not piece:
+            continue
+
+        accumulated += piece
+        cards = complete_cards(accumulated)
+        while sent < len(cards):
+            yield "card", cards[sent]
+            sent += 1
+
+    yield "raw", accumulated
+
+
+@app.post("/api/chat/stream")
+async def chat_stream(req: ChatRequest):
+    config = get_config()
+
+    async def emit():
+        if not config["api_key"]:
+            yield _ndjson({"type": "done", "deck": make_error_deck(
+                req.message,
+                "OPENROUTER_API_KEY is not set for this server process. Copy "
+                ".env.example to .env, add your key, then restart the server.",
+            )})
+            return
+
+        client = get_client(config["api_key"], config["endpoint"])
+        messages = build_messages(req)
+        last_error = ""
+
+        for model in [config["model"], *config["fallbacks"]]:
+            raw = ""
+            try:
+                async for kind, value in stream_cards(client, model, messages):
+                    if kind == "card":
+                        yield _ndjson({"type": "card", "card": value})
+                    else:
+                        raw = value
+
+                if not raw.strip():
+                    raise EmptyCompletion(f"{model} returned an empty response.")
+
+                deck = normalize_deck(extract_json_object(raw))
+
+                # Same one-shot repair as the non-streaming path. The cards
+                # already sent may be replaced by the done deck; that is the
+                # honest trade for showing them early.
+                if not deck["verified"]:
+                    hard, _ = validate_chain(deck["cards"])
+                    try:
+                        repaired, _ = await request_deck(client, model, messages + [
+                            {"role": "assistant", "content": raw},
+                            {"role": "user", "content": repair_instruction(hard)},
+                        ])
+                        if repaired["verified"] or len(repaired["issues"]) < len(deck["issues"]):
+                            deck = repaired
+                    except Exception:
+                        pass  # keep the original; it is already flagged unverified
+
+                yield _ndjson({"type": "done", "deck": finalize(deck, req)})
+                return
+
+            except EmptyCompletion as exc:
+                last_error = str(exc)
+            except (json.JSONDecodeError, ValueError) as exc:
+                last_error = f"{model} returned unusable JSON: {exc}"
+            except Exception as exc:
+                last_error = f"{model}: {exc}"
+
+        yield _ndjson({"type": "done", "deck": make_error_deck(
+            req.message, f"Deck generation failed. {last_error}")})
+
+    return StreamingResponse(
+        emit(),
+        media_type="application/x-ndjson",
+        # Without these a proxy will sit on the response and hand it over in
+        # one piece, which defeats the whole endpoint.
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.get("/api/health")
