@@ -67,6 +67,69 @@ def get_config() -> dict:
     }
 
 
+# ══════════════════════════════════════════════════════════════════════════
+# PROVIDERS
+#
+# Every free tier is capped per account per day, so no single one can carry a
+# public app: the first handful of visitors spend the allowance and everyone
+# after gets a 429. Chaining several is what makes "free" actually hold up.
+#
+# A fallback therefore has to change the base URL and the key, not just the
+# model name — which is what FALLBACK_MODELS could never express. All of these
+# speak the OpenAI wire format, so one client class covers them.
+# ══════════════════════════════════════════════════════════════════════════
+
+KNOWN_PROVIDERS = {
+    "groq":       "https://api.groq.com/openai/v1",
+    "gemini":     "https://generativelanguage.googleapis.com/v1beta/openai/",
+    "cerebras":   "https://api.cerebras.ai/v1",
+    "mistral":    "https://api.mistral.ai/v1",
+    "together":   "https://api.together.xyz/v1",
+    "openrouter": "https://openrouter.ai/api/v1",
+    "openai":     "https://api.openai.com/v1",
+}
+
+
+def get_providers() -> List[dict]:
+    """The chain to try, in order, as {name, endpoint, api_key, model}.
+
+    Set PROVIDERS to a comma-separated list and give each one a _API_KEY and
+    _MODEL. Anything unconfigured is skipped rather than failing the chain —
+    listing a provider you have not signed up for yet is not an error.
+    """
+    names = [n.strip().lower()
+             for n in os.environ.get("PROVIDERS", "").split(",") if n.strip()]
+
+    if names:
+        chain = []
+        for name in names:
+            prefix = name.upper()
+            key = os.environ.get(f"{prefix}_API_KEY", "").strip()
+            model = os.environ.get(f"{prefix}_MODEL", "").strip()
+            endpoint = (os.environ.get(f"{prefix}_ENDPOINT", "").strip()
+                        or KNOWN_PROVIDERS.get(name, ""))
+            if key and model and endpoint:
+                chain.append({"name": name, "endpoint": endpoint,
+                              "api_key": key, "model": model})
+        return chain
+
+    # No PROVIDERS set: keep the original single-endpoint config working so an
+    # existing .env is not silently broken.
+    key = (os.environ.get("OPENROUTER_API_KEY") or
+           os.environ.get("OPENAI_API_KEY") or "").strip()
+    if not key:
+        return []
+
+    endpoint = os.environ.get("API_ENDPOINT", DEFAULT_ENDPOINT)
+    models = [os.environ.get("MODEL", DEFAULT_MODEL)]
+    models += [m.strip() for m in
+               os.environ.get("FALLBACK_MODELS", DEFAULT_FALLBACKS).split(",")
+               if m.strip()]
+
+    return [{"name": "openrouter", "endpoint": endpoint,
+             "api_key": key, "model": model} for model in models]
+
+
 @lru_cache(maxsize=8)
 def get_client(api_key: str, endpoint: str) -> AsyncOpenAI:
     """One pooled client per (key, endpoint) instead of one per request."""
@@ -702,20 +765,17 @@ def finalize(deck: dict, req: ChatRequest) -> dict:
 @app.post("/api/chat")
 async def chat(req: ChatRequest, request: Request):
     enforce(DECK_LIMITER, request)
-    config = get_config()
+    providers = get_providers()
 
-    if not config["api_key"]:
-        return json_response(make_error_deck(
-            req.message,
-            "OPENROUTER_API_KEY is not set for this server process. Copy .env.example "
-            "to .env, add your key, then restart the server.",
-        ))
+    if not providers:
+        return json_response(make_error_deck(req.message, "No model provider is configured. Set PROVIDERS with a key and model for each — for example PROVIDERS=groq,gemini with GROQ_API_KEY and GROQ_MODEL set. See .env.example."))
 
-    client = get_client(config["api_key"], config["endpoint"])
     messages = build_messages(req)
 
     last_error = ""
-    for model in [config["model"], *config["fallbacks"]]:
+    for provider in providers:
+        client = get_client(provider["api_key"], provider["endpoint"])
+        model = provider["model"]
         try:
             deck, raw = await request_deck(client, model, messages)
             if deck["verified"]:
@@ -742,9 +802,9 @@ async def chat(req: ChatRequest, request: Request):
         except EmptyCompletion as exc:
             last_error = str(exc)
         except (json.JSONDecodeError, ValueError) as exc:
-            last_error = f"{model} returned unusable JSON: {exc}"
+            last_error = f"{provider['name']}/{model} returned unusable JSON: {exc}"
         except Exception as exc:
-            last_error = f"{model}: {exc}"
+            last_error = f"{provider['name']}/{model}: {exc}"
 
     return json_response(make_error_deck(
         req.message, public_error(f"Deck generation failed. {last_error}")))
@@ -862,11 +922,10 @@ Return ONLY a JSON object:
 
 
 async def generate_questions(sector: dict, avoid: List[str], count: int) -> List[dict]:
-    config = get_config()
-    if not config["api_key"]:
+    providers = get_providers()
+    if not providers:
         return []
 
-    client = get_client(config["api_key"], config["endpoint"])
     ask = (
         f"Sector: {sector['label']} — {sector['blurb']}.\n"
         f"Write {count} questions in this sector."
@@ -875,24 +934,36 @@ async def generate_questions(sector: dict, avoid: List[str], count: int) -> List
         listed = "\n".join(f"- {q}" for q in avoid)
         ask += f"\n\nDo not write any of these, or a rewording of them:\n{listed}"
 
-    response = await client.chat.completions.create(
-        model=config["questions_model"],
-        messages=[
-            {"role": "system", "content": QUESTIONS_SYSTEM},
-            {"role": "user", "content": ask},
-        ],
-        stream=False,
-        temperature=1.0,  # variety matters more than precision for a question list
-        max_tokens=1200,
-        response_format={"type": "json_object"},
-        timeout=45,
-    )
-    choice = response.choices[0] if response.choices else None
-    content = choice.message.content if choice else ""
-    if not content or not content.strip():
-        return []
+    # Same chain as a deck: if the first provider has spent its daily free
+    # allowance, Explore falls through rather than going blank.
+    override = os.environ.get("QUESTIONS_MODEL", "").strip()
+    for provider in providers:
+        client = get_client(provider["api_key"], provider["endpoint"])
+        try:
+            response = await client.chat.completions.create(
+                model=override or provider["model"],
+                messages=[
+                    {"role": "system", "content": QUESTIONS_SYSTEM},
+                    {"role": "user", "content": ask},
+                ],
+                stream=False,
+                temperature=1.0,  # variety beats precision for a question list
+                max_tokens=1200,
+                response_format={"type": "json_object"},
+                timeout=45,
+            )
+            choice = response.choices[0] if response.choices else None
+            content = choice.message.content if choice else ""
+            if not content or not content.strip():
+                continue
 
-    return normalize_questions(extract_json_object(content).get("questions"))
+            questions = normalize_questions(extract_json_object(content).get("questions"))
+            if questions:
+                return questions
+        except Exception as exc:
+            print(f"[explore] {provider['name']}: {exc}", flush=True)
+
+    return []
 
 
 @app.get("/api/explore/sectors")
@@ -968,22 +1039,20 @@ async def stream_cards(client: AsyncOpenAI, model: str, messages: List[dict]):
 @app.post("/api/chat/stream")
 async def chat_stream(req: ChatRequest, request: Request):
     enforce(DECK_LIMITER, request)
-    config = get_config()
+    providers = get_providers()
 
     async def emit():
-        if not config["api_key"]:
+        if not providers:
             yield _ndjson({"type": "done", "deck": make_error_deck(
-                req.message,
-                "OPENROUTER_API_KEY is not set for this server process. Copy "
-                ".env.example to .env, add your key, then restart the server.",
-            )})
+                req.message, "No model provider is configured. Set PROVIDERS with a key and model for each — for example PROVIDERS=groq,gemini with GROQ_API_KEY and GROQ_MODEL set. See .env.example.")})
             return
 
-        client = get_client(config["api_key"], config["endpoint"])
         messages = build_messages(req)
         last_error = ""
 
-        for model in [config["model"], *config["fallbacks"]]:
+        for provider in providers:
+            client = get_client(provider["api_key"], provider["endpoint"])
+            model = provider["model"]
             raw = ""
             try:
                 async for kind, value in stream_cards(client, model, messages):
@@ -1018,9 +1087,9 @@ async def chat_stream(req: ChatRequest, request: Request):
             except EmptyCompletion as exc:
                 last_error = str(exc)
             except (json.JSONDecodeError, ValueError) as exc:
-                last_error = f"{model} returned unusable JSON: {exc}"
+                last_error = f"{provider['name']}/{model} returned unusable JSON: {exc}"
             except Exception as exc:
-                last_error = f"{model}: {exc}"
+                last_error = f"{provider['name']}/{model}: {exc}"
 
         yield _ndjson({"type": "done", "deck": make_error_deck(
             req.message, public_error(f"Deck generation failed. {last_error}"))})
@@ -1037,13 +1106,17 @@ async def chat_stream(req: ChatRequest, request: Request):
 @app.get("/api/health")
 async def health():
     config = get_config()
+    providers = get_providers()
     return {
         "status": "ok",
-        "api_key_configured": bool(config["api_key"]),
+        "api_key_configured": bool(config["api_key"]) or bool(providers),
         "api_endpoint": config["endpoint"],
         "model": config["model"],
         "fallback_models": config["fallbacks"],
         "model_is_router": config["model"] in ROUTER_MODELS,
+        # The chain, without the keys. Which providers are configured and in
+        # what order is the thing you actually need when a deploy misbehaves.
+        "providers": [{"name": p["name"], "model": p["model"]} for p in providers],
     }
 
 

@@ -118,10 +118,9 @@ def post_deck():
 
 def test_the_deck_endpoint_refuses_past_its_limit(monkeypatch):
     monkeypatch.setattr(main, "DECK_LIMITER", RateLimiter(limit=2, window=300))
-    monkeypatch.setattr(main, "get_config", lambda: {
-        "api_key": "", "endpoint": "http://x", "model": "m",
-        "fallbacks": [], "questions_model": "m",
-    })
+    # No providers, so the endpoint returns an error deck without touching the
+    # network — the limiter is what is under test, not generation.
+    monkeypatch.setattr(main, "get_providers", lambda: [])
     assert post_deck().status_code == 200
     assert post_deck().status_code == 200
     assert post_deck().status_code == 429
@@ -129,10 +128,9 @@ def test_the_deck_endpoint_refuses_past_its_limit(monkeypatch):
 
 def test_a_refusal_says_how_long_to_wait(monkeypatch):
     monkeypatch.setattr(main, "DECK_LIMITER", RateLimiter(limit=1, window=300))
-    monkeypatch.setattr(main, "get_config", lambda: {
-        "api_key": "", "endpoint": "http://x", "model": "m",
-        "fallbacks": [], "questions_model": "m",
-    })
+    # No providers, so the endpoint returns an error deck without touching the
+    # network — the limiter is what is under test, not generation.
+    monkeypatch.setattr(main, "get_providers", lambda: [])
     post_deck()
     refused = post_deck()
     assert refused.status_code == 429
