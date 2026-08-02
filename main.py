@@ -83,6 +83,7 @@ KNOWN_PROVIDERS = {
     "groq":       "https://api.groq.com/openai/v1",
     "gemini":     "https://generativelanguage.googleapis.com/v1beta/openai/",
     "cerebras":   "https://api.cerebras.ai/v1",
+    "nvidia":     "https://integrate.api.nvidia.com/v1",
     "mistral":    "https://api.mistral.ai/v1",
     "together":   "https://api.together.xyz/v1",
     "openrouter": "https://openrouter.ai/api/v1",
