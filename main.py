@@ -1,9 +1,10 @@
 import os
 import json
+import time
 from functools import lru_cache
 from typing import Dict, List, Literal, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import Response, FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
@@ -73,10 +74,102 @@ def get_client(api_key: str, endpoint: str) -> AsyncOpenAI:
         api_key=api_key,
         base_url=endpoint,
         default_headers={
-            "HTTP-Referer": "http://127.0.0.1:8000",
+            "HTTP-Referer": os.environ.get("PUBLIC_URL", "http://127.0.0.1:8000"),
             "X-Title": "First Principle Bot",
         },
     )
+
+
+# ══════════════════════════════════════════════════════════════════════════
+# RATE LIMITING
+#
+# Every deck and every sector costs a model call from one shared budget, and
+# nothing here is authenticated. On a public URL the limiter is the only thing
+# between a visitor and someone else's bill.
+#
+# A fixed window per caller, in memory. That is enough for one process, which
+# is what this app is: EXPLORE_POOLS already assumes a single instance. Behind
+# more than one instance the limits become per-instance and this needs Redis.
+# ══════════════════════════════════════════════════════════════════════════
+
+
+def client_key(request) -> str:
+    """Who to charge a request to.
+
+    Behind a proxy every request arrives from the proxy's address, so the
+    socket peer is useless — without the forwarded header every visitor would
+    share one bucket and the first few would lock out everyone else. The first
+    entry is the original client; the rest are hops.
+    """
+    forwarded = (request.headers.get("x-forwarded-for") or "").strip()
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    client = getattr(request, "client", None)
+    return getattr(client, "host", None) or "unknown"
+
+
+class RateLimiter:
+    def __init__(self, limit: int, window: int):
+        self.limit = limit
+        self.window = window
+        self._hits: Dict[str, List[float]] = {}
+
+    def _recent(self, key: str, now: float) -> List[float]:
+        cutoff = now - self.window
+        return [t for t in self._hits.get(key, []) if t > cutoff]
+
+    def allow(self, key: str, now: Optional[float] = None) -> bool:
+        now = time.time() if now is None else now
+        self._evict(now)
+
+        recent = self._recent(key, now)
+        if len(recent) >= self.limit:
+            # Deliberately not recording the refused attempt: counting it would
+            # let a retry loop hold its own window open indefinitely.
+            self._hits[key] = recent
+            return False
+
+        recent.append(now)
+        self._hits[key] = recent
+        return True
+
+    def retry_after(self, key: str, now: Optional[float] = None) -> int:
+        now = time.time() if now is None else now
+        recent = self._recent(key, now)
+        if not recent:
+            return 0
+        return max(0, int(recent[0] + self.window - now))
+
+    def _evict(self, now: float) -> None:
+        """Drop callers with nothing left in the window. Without this the dict
+        grows forever, keyed by anything that can reach the port."""
+        cutoff = now - self.window
+        for key in [k for k, v in self._hits.items() if not any(t > cutoff for t in v)]:
+            del self._hits[key]
+
+
+# A deck is the expensive call; sectors are cheaper but still cost one each.
+DECK_LIMITER = RateLimiter(
+    limit=int(os.environ.get("DECK_RATE_LIMIT", "8")),
+    window=int(os.environ.get("DECK_RATE_WINDOW", "300")),
+)
+EXPLORE_LIMITER = RateLimiter(
+    limit=int(os.environ.get("EXPLORE_RATE_LIMIT", "20")),
+    window=int(os.environ.get("EXPLORE_RATE_WINDOW", "300")),
+)
+
+
+def enforce(limiter: RateLimiter, request) -> None:
+    key = client_key(request)
+    if not limiter.allow(key):
+        wait = limiter.retry_after(key)
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many requests. Try again in {wait} seconds.",
+            headers={"Retry-After": str(wait)},
+        )
 
 
 def extract_json_object(content: str) -> dict:
@@ -346,6 +439,20 @@ def normalize_deck(data: dict) -> dict:
     }
 
 
+def public_error(detail: str) -> str:
+    """What a visitor is allowed to see when generation fails.
+
+    Raw provider exceptions carry model names, endpoint URLs and occasionally
+    an echo of the request. That is useful on your own machine and needless
+    exposure on a public URL, so it goes to the log unless DEBUG_ERRORS is set.
+    """
+    print(f"[deck] {detail}", flush=True)
+    if os.environ.get("DEBUG_ERRORS", "").strip() in ("1", "true", "True"):
+        return detail
+    return ("The model could not be reached, or returned something unusable. "
+            "This is a problem on the server, not with your question.")
+
+
 def make_error_deck(topic: str, error: str) -> dict:
     topic = _text(topic, "your question")
     return {
@@ -480,7 +587,9 @@ class Focus(BaseModel):
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=8000)
-    history: List[HistoryMessage] = []
+    # build_messages only uses the last 20; the cap is well above that so a
+    # long session never 422s, while the body stays bounded.
+    history: List[HistoryMessage] = Field(default_factory=list, max_length=60)
     focus: Optional[Focus] = None
 
 
@@ -591,7 +700,8 @@ def finalize(deck: dict, req: ChatRequest) -> dict:
 
 
 @app.post("/api/chat")
-async def chat(req: ChatRequest):
+async def chat(req: ChatRequest, request: Request):
+    enforce(DECK_LIMITER, request)
     config = get_config()
 
     if not config["api_key"]:
@@ -636,7 +746,8 @@ async def chat(req: ChatRequest):
         except Exception as exc:
             last_error = f"{model}: {exc}"
 
-    return json_response(make_error_deck(req.message, f"Deck generation failed. {last_error}"))
+    return json_response(make_error_deck(
+        req.message, public_error(f"Deck generation failed. {last_error}")))
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -790,13 +901,14 @@ async def explore_sectors():
 
 
 @app.get("/api/explore/{slug}")
-async def explore_sector(slug: str):
+async def explore_sector(slug: str, request: Request):
     sector = sector_by_slug(slug)
     if sector is None:
         raise HTTPException(status_code=404, detail=f"Unknown sector: {slug}")
 
     pool = EXPLORE_POOLS.setdefault(slug, ExplorePool())
     if pool.needs_refill(EXPLORE_LOW_WATER):
+        enforce(EXPLORE_LIMITER, request)
         try:
             pool.add(await generate_questions(sector, pool.avoid_list(), EXPLORE_BATCH))
         except Exception:
@@ -854,7 +966,8 @@ async def stream_cards(client: AsyncOpenAI, model: str, messages: List[dict]):
 
 
 @app.post("/api/chat/stream")
-async def chat_stream(req: ChatRequest):
+async def chat_stream(req: ChatRequest, request: Request):
+    enforce(DECK_LIMITER, request)
     config = get_config()
 
     async def emit():
@@ -910,7 +1023,7 @@ async def chat_stream(req: ChatRequest):
                 last_error = f"{model}: {exc}"
 
         yield _ndjson({"type": "done", "deck": make_error_deck(
-            req.message, f"Deck generation failed. {last_error}")})
+            req.message, public_error(f"Deck generation failed. {last_error}"))})
 
     return StreamingResponse(
         emit(),

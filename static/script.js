@@ -1415,7 +1415,9 @@
         if (state.abortController) state.abortController.abort();
       }, CLIENT_DEADLINE_MS);
 
-      var body = { message: text, history: state.history.slice(0, -1) };
+      // Only the last 20 are used server-side, and the request body is capped.
+      // Sending the whole session would grow without bound.
+      var body = { message: text, history: state.history.slice(0, -1).slice(-20) };
       if (focus) body.focus = focus;
 
       var response = await fetch('/api/chat/stream', {
@@ -1429,9 +1431,21 @@
         var detail = 'Request failed with status ' + response.status;
         try {
           var errData = await response.json();
-          if (errData && errData.detail) detail = JSON.stringify(errData.detail);
+          if (errData && errData.detail) {
+            // FastAPI sends a plain string for our own errors and an object for
+            // validation failures; only the latter is worth stringifying.
+            detail = typeof errData.detail === 'string'
+              ? errData.detail : JSON.stringify(errData.detail);
+          }
         } catch (e) { /* non-JSON error body */ }
-        showToast(detail, { label: 'Retry', cb: function () { sendMessage(text, focus); } });
+
+        // Being rate limited is not a failure to retry into — the retry would
+        // be refused too, and the message already says when to come back.
+        if (response.status === 429) {
+          showToast(detail);
+        } else {
+          showToast(detail, { label: 'Retry', cb: function () { sendMessage(text, focus); } });
+        }
         throw new Error(detail);
       }
 
