@@ -886,6 +886,8 @@ async def chat(req: ChatRequest, request: Request):
     messages = build_messages(req)
 
     last_error = ""
+    best = None       # the least-broken deck seen, if none verify
+
     for provider in PROVIDER_POOL.order(providers):
         client = get_client(provider["api_key"], provider["endpoint"])
         model = provider["model"]
@@ -911,8 +913,12 @@ async def chat(req: ChatRequest, request: Request):
             except Exception:
                 pass  # keep the original deck; it is already flagged unverified
 
-            # Still unsound. Return it labelled rather than pretending it passed.
-            return json_response(finalize(deck, req))
+            # Still unsound: keep it as a floor and let the next provider try.
+            if best is None or len(deck["issues"]) < len(best["issues"]):
+                best = deck
+            last_error = f"{provider['name']}/{model}: chain not verified"
+            print(f"[deck] {last_error} — trying the next provider", flush=True)
+            continue
         except EmptyCompletion as exc:
             last_error = str(exc)
         except (json.JSONDecodeError, ValueError) as exc:
@@ -921,6 +927,9 @@ async def chat(req: ChatRequest, request: Request):
             last_error = f"{provider['name']}/{model}: {exc}"
             if should_cool_down(str(exc)):
                 PROVIDER_POOL.penalise(provider, cooldown_for(str(exc)))
+
+    if best is not None:
+        return json_response(finalize(best, req))
 
     return json_response(make_error_deck(
         req.message, public_error(f"Deck generation failed. {last_error}")))
@@ -1168,6 +1177,7 @@ async def chat_stream(req: ChatRequest, request: Request):
 
         messages = build_messages(req)
         last_error = ""
+        best = None       # the least-broken deck seen, if none verify
 
         for provider in PROVIDER_POOL.order(providers):
             client = get_client(provider["api_key"], provider["endpoint"])
@@ -1201,6 +1211,19 @@ async def chat_stream(req: ChatRequest, request: Request):
                     except Exception:
                         pass  # keep the original; it is already flagged unverified
 
+                # Still unsound after its own repair: this model cannot hold the
+                # contract for this question. Keep it only as a floor and ask the
+                # next provider, which is what the chain is for. Returning here
+                # was why a weak model's shallow deck reached the reader while
+                # better providers sat unused.
+                if not deck["verified"]:
+                    if best is None or len(deck["issues"]) < len(best["issues"]):
+                        best = deck
+                    last_error = f"{provider['name']}/{model}: chain not verified"
+                    print(f"[deck] {last_error} — trying the next provider",
+                          flush=True)
+                    continue
+
                 yield _ndjson({"type": "done", "deck": finalize(deck, req)})
                 return
 
@@ -1212,6 +1235,11 @@ async def chat_stream(req: ChatRequest, request: Request):
                 last_error = f"{provider['name']}/{model}: {exc}"
                 if should_cool_down(str(exc)):
                     PROVIDER_POOL.penalise(provider, cooldown_for(str(exc)))
+
+        # Every provider tried. A flagged deck still beats no answer.
+        if best is not None:
+            yield _ndjson({"type": "done", "deck": finalize(best, req)})
+            return
 
         yield _ndjson({"type": "done", "deck": make_error_deck(
             req.message, public_error(f"Deck generation failed. {last_error}"))})
