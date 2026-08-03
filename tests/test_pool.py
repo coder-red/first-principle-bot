@@ -93,21 +93,36 @@ def test_everything_is_offered_when_everything_is_capped():
     assert len(pool.order([A, B, C], now=10)) == 3
 
 
-# ── spreading load ───────────────────────────────────────────────────────
+# ── preferring the renewable allowance ───────────────────────────────────
+#
+# Rotating the starting entry only makes sense when allowances are comparable.
+# They are not: Groq refills 8000 tokens every minute, while a Gemini model
+# gets 20 requests for the whole day. Spreading requests evenly across those
+# spends the scarce one for no reason. Declared order is the preference, and
+# the cooldown is what makes falling through cheap.
 
-def test_the_starting_entry_rotates_between_requests():
-    """Always starting at the head sends every request at the same allowance
-    and exhausts it first."""
+def test_the_declared_order_is_preserved():
     pool = ProviderPool()
-    first = pool.order([A, B, C], now=0)[0]
-    second = pool.order([A, B, C], now=0)[0]
-    assert first != second
+    assert pool.order([A, B, C], now=0) == [A, B, C]
 
 
-def test_rotation_still_offers_every_entry():
+def test_the_same_head_is_offered_again_while_it_is_healthy():
+    """The first entry carries normal traffic; the rest are fallbacks."""
     pool = ProviderPool()
-    pool.order([A, B, C], now=0)
-    assert len(pool.order([A, B, C], now=0)) == 3
+    assert pool.order([A, B, C], now=0)[0] is A
+    assert pool.order([A, B, C], now=0)[0] is A
+
+
+def test_the_next_entry_takes_over_only_once_the_head_is_capped():
+    pool = ProviderPool()
+    pool.penalise(A, 60, now=0)
+    assert pool.order([A, B, C], now=10)[0] is B
+
+
+def test_the_head_resumes_when_its_cooldown_expires():
+    pool = ProviderPool()
+    pool.penalise(A, 60, now=0)
+    assert pool.order([A, B, C], now=61)[0] is A
 
 
 # ── how long to wait ─────────────────────────────────────────────────────
