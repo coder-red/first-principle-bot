@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import time
 from functools import lru_cache
 from typing import Dict, List, Literal, Optional
@@ -112,17 +113,24 @@ def get_providers() -> List[dict]:
         for name in names:
             prefix = name.upper()
             key = os.environ.get(f"{prefix}_API_KEY", "").strip()
-            model = os.environ.get(f"{prefix}_MODEL", "").strip()
             endpoint = (os.environ.get(f"{prefix}_ENDPOINT", "").strip()
                         or KNOWN_PROVIDERS.get(name, ""))
-            if key and model and endpoint:
-                chain.append({
-                    "name": name, "endpoint": endpoint,
-                    "api_key": key, "model": model,
-                    # Providers disagree wildly on this, so it is per-entry.
-                    "max_tokens": int(os.environ.get(
-                        f"{prefix}_MAX_TOKENS", DECK_MAX_TOKENS)),
-                })
+
+            # Caps are usually per model, so several models behind one key are
+            # several allowances. _MODELS wins over _MODEL when both are set.
+            plural = os.environ.get(f"{prefix}_MODELS", "").strip()
+            models = ([m.strip() for m in plural.split(",") if m.strip()] if plural
+                      else [os.environ.get(f"{prefix}_MODEL", "").strip()])
+
+            for model in models:
+                if key and model and endpoint:
+                    chain.append({
+                        "name": name, "endpoint": endpoint,
+                        "api_key": key, "model": model,
+                        # Providers disagree wildly on this, so it is per-entry.
+                        "max_tokens": int(os.environ.get(
+                            f"{prefix}_MAX_TOKENS", DECK_MAX_TOKENS)),
+                    })
         return chain
 
     # No PROVIDERS set: keep the original single-endpoint config working so an
@@ -140,6 +148,89 @@ def get_providers() -> List[dict]:
 
     return [{"name": "openrouter", "endpoint": endpoint, "api_key": key,
              "model": model, "max_tokens": DECK_MAX_TOKENS} for model in models]
+
+
+# Ceiling on any cooldown. A wrong guess should cost minutes, not a day.
+MAX_COOLDOWN = 3600
+DEFAULT_COOLDOWN = 60
+
+
+def cooldown_for(error: str) -> int:
+    """How long to stop using an entry after it refused a request.
+
+    The provider is the authority when it says so — Gemini returns "Please
+    retry in 52.8s" — otherwise the wording distinguishes a per-minute cap
+    (clears itself shortly) from a per-day one or an empty wallet (will not).
+    """
+    said = re.search(r"retry in ([0-9]+(?:\.[0-9]+)?)s", error, re.I)
+    if said:
+        return max(1, min(MAX_COOLDOWN, int(float(said.group(1)))))
+
+    low = error.lower()
+    if "perday" in low.replace("-", "").replace("_", "") or "per day" in low \
+            or "per-day" in low or "402" in low or "credit" in low or "billing" in low:
+        return MAX_COOLDOWN
+    return DEFAULT_COOLDOWN
+
+
+# HTTP statuses that mean "this entry cannot serve you right now". Anything
+# else — a malformed deck, a truncated one — is a bad roll from a working
+# provider, and sidelining it for a minute would throw away the best entry in
+# the chain over one unlucky response.
+CAPACITY_CODES = ("400", "401", "402", "403", "413", "429", "500", "502", "503", "529")
+
+
+def should_cool_down(error: str) -> bool:
+    low = error.lower()
+    if any(f"error code: {code}" in low for code in CAPACITY_CODES):
+        return True
+    return any(word in low for word in
+               ("rate limit", "quota", "too many requests", "overloaded",
+                "insufficient", "billing", "payment required"))
+
+
+class ProviderPool:
+    """Which entries are worth trying right now, and in what order.
+
+    Two jobs. Remember what is spent, so a capped entry is not retried on every
+    request — that wasted a doomed call per request and hid the working entries
+    behind it. And rotate the starting point, because always beginning at the
+    head aims every request at the same allowance and exhausts it first.
+    """
+
+    def __init__(self):
+        self._until: Dict[str, float] = {}
+        self._cursor = 0
+
+    @staticmethod
+    def _key(provider: dict) -> str:
+        return f"{provider['name']}:{provider['model']}"
+
+    def penalise(self, provider: dict, seconds: int,
+                 now: Optional[float] = None) -> None:
+        now = time.time() if now is None else now
+        self._until[self._key(provider)] = now + seconds
+
+    def is_cooling(self, provider: dict, now: Optional[float] = None) -> bool:
+        now = time.time() if now is None else now
+        return self._until.get(self._key(provider), 0) > now
+
+    def order(self, providers: List[dict], now: Optional[float] = None) -> List[dict]:
+        now = time.time() if now is None else now
+        healthy = [p for p in providers if not self.is_cooling(p, now)]
+
+        # Everything is cooling: try anyway rather than refuse outright. The
+        # cooldown is an estimate; the provider decides.
+        pool = healthy or list(providers)
+        if not pool:
+            return []
+
+        start = self._cursor % len(pool)
+        self._cursor = (self._cursor + 1) % max(1, len(pool))
+        return pool[start:] + pool[:start]
+
+
+PROVIDER_POOL = ProviderPool()
 
 
 @lru_cache(maxsize=8)
@@ -797,7 +888,7 @@ async def chat(req: ChatRequest, request: Request):
     messages = build_messages(req)
 
     last_error = ""
-    for provider in providers:
+    for provider in PROVIDER_POOL.order(providers):
         client = get_client(provider["api_key"], provider["endpoint"])
         model = provider["model"]
         try:
@@ -830,6 +921,8 @@ async def chat(req: ChatRequest, request: Request):
             last_error = f"{provider['name']}/{model} returned unusable JSON: {exc}"
         except Exception as exc:
             last_error = f"{provider['name']}/{model}: {exc}"
+            if should_cool_down(str(exc)):
+                PROVIDER_POOL.penalise(provider, cooldown_for(str(exc)))
 
     return json_response(make_error_deck(
         req.message, public_error(f"Deck generation failed. {last_error}")))
@@ -962,7 +1055,7 @@ async def generate_questions(sector: dict, avoid: List[str], count: int) -> List
     # Same chain as a deck: if the first provider has spent its daily free
     # allowance, Explore falls through rather than going blank.
     override = os.environ.get("QUESTIONS_MODEL", "").strip()
-    for provider in providers:
+    for provider in PROVIDER_POOL.order(providers):
         client = get_client(provider["api_key"], provider["endpoint"])
         try:
             response = await client.chat.completions.create(
@@ -987,6 +1080,8 @@ async def generate_questions(sector: dict, avoid: List[str], count: int) -> List
                 return questions
         except Exception as exc:
             print(f"[explore] {provider['name']}: {exc}", flush=True)
+            if should_cool_down(str(exc)):
+                PROVIDER_POOL.penalise(provider, cooldown_for(str(exc)))
 
     return []
 
@@ -1076,7 +1171,7 @@ async def chat_stream(req: ChatRequest, request: Request):
         messages = build_messages(req)
         last_error = ""
 
-        for provider in providers:
+        for provider in PROVIDER_POOL.order(providers):
             client = get_client(provider["api_key"], provider["endpoint"])
             model = provider["model"]
             raw = ""
@@ -1117,6 +1212,8 @@ async def chat_stream(req: ChatRequest, request: Request):
                 last_error = f"{provider['name']}/{model} returned unusable JSON: {exc}"
             except Exception as exc:
                 last_error = f"{provider['name']}/{model}: {exc}"
+                if should_cool_down(str(exc)):
+                    PROVIDER_POOL.penalise(provider, cooldown_for(str(exc)))
 
         yield _ndjson({"type": "done", "deck": make_error_deck(
             req.message, public_error(f"Deck generation failed. {last_error}"))})
