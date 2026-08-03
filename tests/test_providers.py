@@ -18,14 +18,6 @@ SOUND = {
 }
 
 
-@pytest.fixture(autouse=True)
-def clean_env(monkeypatch):
-    for var in list(os.environ):
-        if var.endswith(("_API_KEY", "_MODEL", "_ENDPOINT", "_MAX_TOKENS")) or var in (
-                "PROVIDERS", "MODEL", "FALLBACK_MODELS", "API_ENDPOINT"):
-            monkeypatch.delenv(var, raising=False)
-
-
 # ── explicit multi-provider config ───────────────────────────────────────
 
 def test_builds_one_entry_per_named_provider(monkeypatch):

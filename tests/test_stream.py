@@ -121,10 +121,10 @@ def fake_client_streaming(chunks):
 
 
 def events_for(monkeypatch, chunks):
-    monkeypatch.setattr(main, "get_config", lambda: {
-        "api_key": "test-key", "endpoint": "http://x", "model": "m",
-        "fallbacks": [], "questions_model": "m",
-    })
+    monkeypatch.setattr(main, "get_providers", lambda: [
+        {"name": "test", "model": "m", "endpoint": "http://x",
+         "api_key": "test-key", "max_tokens": 4000},
+    ])
     monkeypatch.setattr(main, "get_client", lambda *a, **k: fake_client_streaming(chunks))
 
     with client.stream("POST", "/api/chat/stream",

@@ -1,6 +1,27 @@
+import os
+
 import pytest
 
 import main
+
+# Anything that configures a provider. Kept in one place because three separate
+# copies of this list drifted apart and each time the gap let the developer's
+# real .env into a test — including one that then made live API calls.
+PROVIDER_ENV_SUFFIXES = ("_API_KEY", "_MODEL", "_MODELS", "_ENDPOINT", "_MAX_TOKENS")
+PROVIDER_ENV_NAMES = ("PROVIDERS", "MODEL", "MODELS", "FALLBACK_MODELS",
+                      "API_ENDPOINT", "QUESTIONS_MODEL", "DECK_MAX_TOKENS")
+
+
+@pytest.fixture(autouse=True)
+def isolated_provider_env(monkeypatch):
+    """No test sees the real .env. A test that wants a provider sets one up.
+
+    Without this the suite's behaviour depends on whoever ran it last editing
+    their .env, and a test can silently spend real quota.
+    """
+    for var in list(os.environ):
+        if var.endswith(PROVIDER_ENV_SUFFIXES) or var in PROVIDER_ENV_NAMES:
+            monkeypatch.delenv(var, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -13,3 +34,9 @@ def fresh_rate_limits():
     yield
     main.DECK_LIMITER._hits.clear()
     main.EXPLORE_LIMITER._hits.clear()
+
+
+@pytest.fixture(autouse=True)
+def fresh_provider_pool(monkeypatch):
+    """Cooldowns and the rotation cursor must not leak between tests."""
+    monkeypatch.setattr(main, "PROVIDER_POOL", main.ProviderPool())

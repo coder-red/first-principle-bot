@@ -30,9 +30,14 @@ services:
         sync: false
       - key: GROQ_MODEL
         sync: false
+      # Groq's free tier caps tokens-per-minute at 8000 and counts max_tokens
+      # toward it, so the 12000 Gemini needs is rejected with 413.
+      - key: GROQ_MAX_TOKENS
+        value: "6000"
       - key: GEMINI_API_KEY
         sync: false
-      - key: GEMINI_MODEL
+      # Plural: caps are per model, so each entry is its own allowance.
+      - key: GEMINI_MODELS
         sync: false
       - key: OPENROUTER_API_KEY
         sync: false
