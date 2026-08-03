@@ -192,15 +192,19 @@ def should_cool_down(error: str) -> bool:
 class ProviderPool:
     """Which entries are worth trying right now, and in what order.
 
-    Two jobs. Remember what is spent, so a capped entry is not retried on every
-    request — that wasted a doomed call per request and hid the working entries
-    behind it. And rotate the starting point, because always beginning at the
-    head aims every request at the same allowance and exhausts it first.
+    Declared order is the preference — the first entry carries normal traffic
+    and the rest are fallbacks. What makes that work is remembering what is
+    spent, so a capped entry is skipped instead of costing a doomed call on
+    every request.
+
+    Deliberately NOT round-robin. Spreading requests evenly assumes the
+    allowances are comparable, and they are not: Groq refills 8000 tokens every
+    minute while a Gemini model gets 20 requests for the entire day. Rotating
+    between those spends the scarce one to relieve the renewable one.
     """
 
     def __init__(self):
         self._until: Dict[str, float] = {}
-        self._cursor = 0
 
     @staticmethod
     def _key(provider: dict) -> str:
@@ -221,13 +225,7 @@ class ProviderPool:
 
         # Everything is cooling: try anyway rather than refuse outright. The
         # cooldown is an estimate; the provider decides.
-        pool = healthy or list(providers)
-        if not pool:
-            return []
-
-        start = self._cursor % len(pool)
-        self._cursor = (self._cursor + 1) % max(1, len(pool))
-        return pool[start:] + pool[:start]
+        return healthy or list(providers)
 
 
 PROVIDER_POOL = ProviderPool()
