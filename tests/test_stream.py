@@ -176,3 +176,114 @@ def test_an_empty_completion_still_ends_with_a_done_event(monkeypatch):
 def test_junk_output_does_not_crash_the_stream(monkeypatch):
     events = events_for(monkeypatch, chunked("this is not json at all"))
     assert events[-1]["type"] == "done"
+
+
+# ── falling through on an unsound chain ──────────────────────────────────
+#
+# A deck that breaks its own rules is the one thing this app cannot serve as
+# though it passed. The chain exists precisely for that, but the stream used
+# to return the first deck it got, verified or not, and never asked the next
+# provider. gpt-oss-120b routinely returns a depth-2 descent where the
+# contract needs 3, so this is the common case, not an edge one.
+
+SHALLOW = {
+    "topic": "T", "question": "Q?",
+    "cards": [
+        {"phase": "question", "level": 0, "title": "Surface", "tag": "ASSUMPTION",
+         "principle": "p", "chain": []},
+        {"phase": "descent", "level": 1, "title": "One", "tag": "VERIFIED",
+         "principle": "p1", "chain": ["a"]},
+        {"phase": "descent", "level": 2, "title": "Two", "tag": "VERIFIED",
+         "principle": "p2", "chain": ["a", "b"]},
+        {"phase": "bedrock", "level": 2, "title": "Floor", "tag": "ATOMIC",
+         "principle": "irreducible", "chain": ["a", "b"]},
+    ],
+}
+
+SOUND = {
+    "topic": "T", "question": "Q?",
+    "cards": [
+        {"phase": "question", "level": 0, "title": "Surface", "tag": "ASSUMPTION",
+         "principle": "p", "chain": []},
+        {"phase": "descent", "level": 1, "title": "One", "tag": "VERIFIED",
+         "principle": "p1", "chain": ["a"]},
+        {"phase": "descent", "level": 2, "title": "Two", "tag": "VERIFIED",
+         "principle": "p2", "chain": ["a", "b"]},
+        {"phase": "descent", "level": 3, "title": "Three", "tag": "VERIFIED",
+         "principle": "p3", "chain": ["a", "b", "c"]},
+        {"phase": "bedrock", "level": 4, "title": "Floor", "tag": "ATOMIC",
+         "principle": "irreducible", "chain": ["a", "b", "c", "d"]},
+        {"phase": "rebuild", "level": 2, "title": "Rebuild", "tag": "VERIFIED",
+         "principle": "r", "chain": ["d", "c"]},
+        {"phase": "insight", "level": 0, "title": "Insight", "tag": "VERIFIED",
+         "principle": "i", "chain": []},
+    ],
+}
+
+
+def client_by_model(payload_for_model):
+    """One fake standing in for every provider, answering per model name."""
+    def factory(api_key, endpoint):
+        async def create(**kwargs):
+            body = json.dumps(payload_for_model[kwargs["model"]])
+            if kwargs.get("stream"):
+                class Stream:
+                    def __aiter__(self):
+                        async def gen():
+                            yield SimpleNamespace(choices=[SimpleNamespace(
+                                delta=SimpleNamespace(content=body))])
+                        return gen()
+                return Stream()
+            return SimpleNamespace(
+                choices=[SimpleNamespace(
+                    message=SimpleNamespace(content=body), finish_reason="stop")],
+                model=kwargs["model"])
+        return SimpleNamespace(
+            chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    return factory
+
+
+def entry(model):
+    return {"name": "p", "model": model, "endpoint": "e",
+            "api_key": "k", "max_tokens": 4000}
+
+
+def done_deck(monkeypatch, providers, payloads):
+    monkeypatch.setattr(main, "get_providers", lambda: providers)
+    monkeypatch.setattr(main, "get_client", client_by_model(payloads))
+    with client.stream("POST", "/api/chat/stream",
+                       json={"message": "Why is the sky blue?"}) as r:
+        events = [json.loads(l) for l in r.iter_lines() if l.strip()]
+    return events[-1]["deck"]
+
+
+def test_an_unsound_deck_falls_through_to_the_next_provider(monkeypatch):
+    deck = done_deck(monkeypatch, [entry("weak"), entry("strong")],
+                     {"weak": SHALLOW, "strong": SOUND})
+    assert deck["verified"] is True
+
+
+def test_a_sound_deck_stops_the_chain_immediately(monkeypatch):
+    """A verified deck must not cost a second provider's allowance."""
+    used = []
+
+    factory = client_by_model({"strong": SOUND, "weak": SHALLOW})
+
+    def counting(api_key, endpoint):
+        used.append(endpoint)
+        return factory(api_key, endpoint)
+
+    monkeypatch.setattr(main, "get_providers", lambda: [entry("strong"), entry("weak")])
+    monkeypatch.setattr(main, "get_client", counting)
+    with client.stream("POST", "/api/chat/stream",
+                       json={"message": "Why is the sky blue?"}) as r:
+        list(r.iter_lines())
+    assert len(used) == 1, used
+
+
+def test_the_best_deck_is_returned_when_none_verify(monkeypatch):
+    """Still a deck, still flagged — better than no answer at all."""
+    deck = done_deck(monkeypatch, [entry("weak"), entry("weak2")],
+                     {"weak": SHALLOW, "weak2": SHALLOW})
+    assert deck["verified"] is False
+    assert deck["cards"], "an unsound deck must still be shown, not dropped"
