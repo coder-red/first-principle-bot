@@ -27,7 +27,13 @@ DEFAULT_MODEL = "inclusionai/ling-2.6-flash"
 DEFAULT_FALLBACKS = "meta-llama/llama-3.3-70b-instruct,mistralai/mistral-small-24b-instruct-2501"
 DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
 
-DECK_MAX_TOKENS = int(os.environ.get("DECK_MAX_TOKENS", 4000))
+# 4000 was tuned against non-reasoning models. Reasoning models bill their
+# hidden thinking against this budget but report only the visible tokens, so
+# gemini-3.6-flash was finishing with finish_reason="length" at 336 reported
+# tokens and a deck cut off mid-string. Raising it costs nothing on models that
+# do not think — they stop at ~1800 tokens either way, and you are billed for
+# what is generated, not for the ceiling.
+DECK_MAX_TOKENS = int(os.environ.get("DECK_MAX_TOKENS", 12000))
 
 # Without this a stalled provider holds the request open forever, and the
 # reader watches a shimmer with no way to tell slow from dead. Decks routinely
@@ -110,8 +116,13 @@ def get_providers() -> List[dict]:
             endpoint = (os.environ.get(f"{prefix}_ENDPOINT", "").strip()
                         or KNOWN_PROVIDERS.get(name, ""))
             if key and model and endpoint:
-                chain.append({"name": name, "endpoint": endpoint,
-                              "api_key": key, "model": model})
+                chain.append({
+                    "name": name, "endpoint": endpoint,
+                    "api_key": key, "model": model,
+                    # Providers disagree wildly on this, so it is per-entry.
+                    "max_tokens": int(os.environ.get(
+                        f"{prefix}_MAX_TOKENS", DECK_MAX_TOKENS)),
+                })
         return chain
 
     # No PROVIDERS set: keep the original single-endpoint config working so an
@@ -127,8 +138,8 @@ def get_providers() -> List[dict]:
                os.environ.get("FALLBACK_MODELS", DEFAULT_FALLBACKS).split(",")
                if m.strip()]
 
-    return [{"name": "openrouter", "endpoint": endpoint,
-             "api_key": key, "model": model} for model in models]
+    return [{"name": "openrouter", "endpoint": endpoint, "api_key": key,
+             "model": model, "max_tokens": DECK_MAX_TOKENS} for model in models]
 
 
 @lru_cache(maxsize=8)
@@ -734,13 +745,14 @@ def repair_instruction(violations: List[str]) -> str:
     return "\n".join(lines)
 
 
-async def request_deck(client: AsyncOpenAI, model: str, messages: List[dict]) -> tuple:
+async def request_deck(client: AsyncOpenAI, model: str, messages: List[dict],
+                       max_tokens: Optional[int] = None) -> tuple:
     response = await client.chat.completions.create(
         model=model,
         messages=messages,
         stream=False,
         temperature=0.4,
-        max_tokens=DECK_MAX_TOKENS,
+        max_tokens=max_tokens or DECK_MAX_TOKENS,
         response_format={"type": "json_object"},
         timeout=DECK_TIMEOUT_SECONDS,
     )
@@ -751,6 +763,17 @@ async def request_deck(client: AsyncOpenAI, model: str, messages: List[dict]) ->
     if not content or not content.strip():
         raise EmptyCompletion(
             (f"{model} returned an empty response. "
+             + model_failure_hint(model, response.model, finish)).strip()
+        )
+
+    # Truncated output is non-empty, so it used to skip the check above and die
+    # in the JSON parser instead — reported as "unusable JSON", which points at
+    # the wrong problem entirely. A reasoning model bills hidden thinking
+    # against max_tokens without reporting it, so this fires well below the
+    # apparent budget.
+    if finish == "length":
+        raise EmptyCompletion(
+            (f"{model} was cut off before it finished the deck. "
              + model_failure_hint(model, response.model, finish)).strip()
         )
 
@@ -778,7 +801,8 @@ async def chat(req: ChatRequest, request: Request):
         client = get_client(provider["api_key"], provider["endpoint"])
         model = provider["model"]
         try:
-            deck, raw = await request_deck(client, model, messages)
+            deck, raw = await request_deck(client, model, messages,
+                                           provider["max_tokens"])
             if deck["verified"]:
                 return json_response(finalize(deck, req))
 
@@ -790,7 +814,7 @@ async def chat(req: ChatRequest, request: Request):
                 repaired, _ = await request_deck(client, model, messages + [
                     {"role": "assistant", "content": raw},
                     {"role": "user", "content": repair_instruction(hard)},
-                ])
+                ], provider["max_tokens"])
                 if repaired["verified"]:
                     return json_response(finalize(repaired, req))
                 if len(repaired["issues"]) < len(deck["issues"]):
@@ -1006,14 +1030,15 @@ def _ndjson(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False) + "\n"
 
 
-async def stream_cards(client: AsyncOpenAI, model: str, messages: List[dict]):
+async def stream_cards(client: AsyncOpenAI, model: str, messages: List[dict],
+                       max_tokens: Optional[int] = None):
     """Yield ("card", card) as each one closes, then ("raw", full_text)."""
     stream = await client.chat.completions.create(
         model=model,
         messages=messages,
         stream=True,
         temperature=0.4,
-        max_tokens=DECK_MAX_TOKENS,
+        max_tokens=max_tokens or DECK_MAX_TOKENS,
         response_format={"type": "json_object"},
         timeout=DECK_TIMEOUT_SECONDS,
     )
@@ -1056,7 +1081,8 @@ async def chat_stream(req: ChatRequest, request: Request):
             model = provider["model"]
             raw = ""
             try:
-                async for kind, value in stream_cards(client, model, messages):
+                async for kind, value in stream_cards(client, model, messages,
+                                                      provider["max_tokens"]):
                     if kind == "card":
                         yield _ndjson({"type": "card", "card": value})
                     else:
@@ -1076,7 +1102,7 @@ async def chat_stream(req: ChatRequest, request: Request):
                         repaired, _ = await request_deck(client, model, messages + [
                             {"role": "assistant", "content": raw},
                             {"role": "user", "content": repair_instruction(hard)},
-                        ])
+                        ], provider["max_tokens"])
                         if repaired["verified"] or len(repaired["issues"]) < len(deck["issues"]):
                             deck = repaired
                     except Exception:

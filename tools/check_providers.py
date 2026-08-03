@@ -43,7 +43,27 @@ async def probe(provider: dict) -> None:
 
     started = time.time()
     try:
-        deck, _ = await main.request_deck(client, provider["model"], messages)
+        deck, raw = await main.request_deck(
+            client, provider["model"], messages, provider["max_tokens"])
+
+        # The app does not accept a broken chain either: it spends one repair
+        # call quoting the exact rules violated. A probe that skips that judges
+        # a provider more harshly than production does.
+        if not deck["verified"]:
+            hard, _ = main.validate_chain(deck["cards"])
+            try:
+                repaired, _ = await main.request_deck(
+                    client, provider["model"],
+                    messages + [
+                        {"role": "assistant", "content": raw},
+                        {"role": "user", "content": main.repair_instruction(hard)},
+                    ],
+                    provider["max_tokens"])
+                if repaired["verified"] or len(repaired["issues"]) < len(deck["issues"]):
+                    deck = repaired
+                    print(f"  {'':<52}         (needed the repair pass)")
+            except Exception:
+                pass
     except Exception as exc:
         detail = str(exc)
         # The two failures worth naming, because they mean different actions.

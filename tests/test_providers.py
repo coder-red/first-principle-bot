@@ -2,17 +2,26 @@
 public app. The fallback chain therefore has to cross providers -- each hop
 needs its own base URL and key, not just a different model name."""
 
+import asyncio
+import json
 import os
+from types import SimpleNamespace
 
 import pytest
 
 from main import KNOWN_PROVIDERS, get_providers
 
+SOUND = {
+    "topic": "T", "question": "Q?",
+    "cards": [{"phase": "descent", "level": 1, "title": "One",
+               "tag": "VERIFIED", "principle": "p", "chain": ["a"]}],
+}
+
 
 @pytest.fixture(autouse=True)
 def clean_env(monkeypatch):
     for var in list(os.environ):
-        if var.endswith(("_API_KEY", "_MODEL", "_ENDPOINT")) or var in (
+        if var.endswith(("_API_KEY", "_MODEL", "_ENDPOINT", "_MAX_TOKENS")) or var in (
                 "PROVIDERS", "MODEL", "FALLBACK_MODELS", "API_ENDPOINT"):
             monkeypatch.delenv(var, raising=False)
 
@@ -119,3 +128,70 @@ def test_falls_back_to_the_original_openrouter_settings(monkeypatch):
 
 def test_no_key_at_all_yields_no_providers(monkeypatch):
     assert get_providers() == []
+
+
+# ── per-provider token budget ────────────────────────────────────────────
+#
+# One global DECK_MAX_TOKENS cannot serve both kinds of provider. Gemini bills
+# hidden thinking against the budget, so it needs ~12k or the deck truncates.
+# Groq's free tier caps tokens-per-minute at 8000 and counts max_tokens toward
+# it, so the same 12k is rejected outright with 413. Measured, not guessed.
+
+import main
+
+
+def test_a_provider_defaults_to_the_global_budget(monkeypatch):
+    monkeypatch.setenv("PROVIDERS", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    monkeypatch.setenv("GROQ_MODEL", "m")
+
+    assert get_providers()[0]["max_tokens"] == main.DECK_MAX_TOKENS
+
+
+def test_a_provider_can_cap_its_own_budget(monkeypatch):
+    monkeypatch.setenv("PROVIDERS", "groq")
+    monkeypatch.setenv("GROQ_API_KEY", "k")
+    monkeypatch.setenv("GROQ_MODEL", "m")
+    monkeypatch.setenv("GROQ_MAX_TOKENS", "6000")
+
+    assert get_providers()[0]["max_tokens"] == 6000
+
+
+def test_the_legacy_config_also_carries_a_budget(monkeypatch):
+    monkeypatch.setenv("OPENROUTER_API_KEY", "k")
+    assert all(p["max_tokens"] == main.DECK_MAX_TOKENS for p in get_providers())
+
+
+def test_request_deck_honours_the_budget_it_is_given():
+    """The budget has to reach the wire, not just the config dict."""
+    seen = {}
+
+    async def create(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(SOUND)),
+                finish_reason="stop")],
+            model="m")
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    asyncio.run(main.request_deck(client, "m", [], max_tokens=6000))
+    assert seen["max_tokens"] == 6000
+
+
+def test_request_deck_falls_back_to_the_global_budget():
+    seen = {}
+
+    async def create(**kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content=json.dumps(SOUND)),
+                finish_reason="stop")],
+            model="m")
+
+    client = SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    asyncio.run(main.request_deck(client, "m", []))
+    assert seen["max_tokens"] == main.DECK_MAX_TOKENS

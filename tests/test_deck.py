@@ -1,3 +1,4 @@
+import asyncio
 import json
 from types import SimpleNamespace
 
@@ -29,8 +30,11 @@ def client():
 
 @pytest.fixture
 def no_key(monkeypatch):
+    """No provider at all. PROVIDERS must be cleared too, or a real .env chain
+    is picked up and the test makes live API calls."""
     monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("PROVIDERS", raising=False)
 
 
 def minimal_deck(**overrides):
@@ -613,3 +617,40 @@ def test_sample_deck_is_well_formed(client):
     descent_levels = [c["level"] for c in deck["cards"] if c["phase"] == "descent"]
     assert descent_levels == list(range(1, len(descent_levels) + 1))
     assert len(deck["followups"]) == 3
+
+
+# ── truncated completions ──────────────────────────────────────────────────
+#
+# A reasoning model bills its hidden thinking against max_tokens but does not
+# report it in completion_tokens, so the budget can be spent before the JSON is
+# finished. Observed against gemini-3.6-flash: finish_reason="length" at 336
+# completion tokens with max_tokens=4000. The content is non-empty, just cut
+# off mid-string, so it fell through to a JSON parse error and the hint that
+# explains exactly this never fired.
+
+def _client_returning(content, finish):
+    async def create(**kwargs):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(
+                message=SimpleNamespace(content=content), finish_reason=finish)],
+            model="m",
+        )
+    return SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+
+def test_a_truncated_deck_is_reported_as_truncation_not_bad_json():
+    cut_off = '{"topic": "lift", "cards": [{"phase": "question", "title": "Force Bal'
+    client = _client_returning(cut_off, "length")
+
+    with pytest.raises(main.EmptyCompletion) as excinfo:
+        asyncio.run(main.request_deck(client, "some-model", []))
+
+    assert "DECK_MAX_TOKENS" in str(excinfo.value), str(excinfo.value)
+
+
+def test_a_complete_deck_is_not_treated_as_truncated():
+    """The guard must not fire on healthy output."""
+    client = _client_returning(json.dumps(sound_deck()), "stop")
+    deck, _ = asyncio.run(main.request_deck(client, "some-model", []))
+    assert deck["verified"] is True
