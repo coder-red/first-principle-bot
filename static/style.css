@@ -1037,6 +1037,107 @@ main {
   animation: modalIn 200ms ease-out;
 }
 
+/* ── access gate ──────────────────────────────────────────────────────────
+   Only rendered on an instance that sets APP_ACCESS_TOKEN. Reuses
+   .card-backdrop so the blur and scrim match the deck modal exactly; only the
+   panel itself differs, because this one is a short form rather than a deck.
+   Every colour is a token, so it follows the theme without its own overrides. */
+
+.gate-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 200;             /* above the deck modal: it gates that too */
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.gate-dialog {
+  position: relative;
+  z-index: 1;
+  width: min(400px, 100%);
+  padding: var(--space-6);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius-lg) + 6px);
+  box-shadow: 0 24px 64px var(--color-shadow-lg);
+  animation: modalIn 200ms ease-out;
+}
+
+.gate-form { display: flex; flex-direction: column; gap: var(--space-4); }
+
+.gate-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.gate-blurb {
+  margin: calc(var(--space-3) * -1) 0 0;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.gate-input {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  background: var(--color-input-bg);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--transition-fast);
+}
+
+.gate-input:focus-visible {
+  outline: none;
+  border-color: var(--color-border-focus);
+  box-shadow: 0 0 0 3px var(--color-accent-subtle);
+}
+
+.gate-error {
+  margin: calc(var(--space-3) * -1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--color-toast-text);
+}
+
+.gate-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.gate-submit,
+.gate-cancel {
+  padding: var(--space-3) var(--space-5);
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.gate-submit {
+  color: #fff;
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent);
+}
+
+.gate-submit:hover:not(:disabled) { background: var(--color-accent-hover); }
+.gate-submit:disabled { opacity: 0.6; cursor: default; }
+
+.gate-cancel {
+  color: var(--color-text-secondary);
+  background: transparent;
+  border: 1px solid var(--color-border);
+}
+
+.gate-cancel:hover { background: var(--color-surface-hover); }
+
 .card-x {
   position: absolute;
   top: var(--space-3);

@@ -24,6 +24,7 @@ SUITES = [
     ("regenerate against persistence", "test_regenerate.py"),
     ("question reframing", "test_reframe.py"),
     ("standalone skill template", "test_skill_template.py"),
+    ("access gate", "test_access_gate.py"),
 ]
 
 
