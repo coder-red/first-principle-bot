@@ -6,3 +6,8 @@ __pycache__/
 # browser-suite screenshots
 _shots/
 *.png
+
+# Optional STATE_DB file, plus the two WAL sidecars SQLite writes beside it.
+*.db
+*.db-wal
+*.db-shm

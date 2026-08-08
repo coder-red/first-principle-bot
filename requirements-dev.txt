@@ -1,0 +1,10 @@
+# Everything needed to run both test suites.
+#
+#   pip install -r requirements-dev.txt
+#   python -m playwright install chromium
+#
+# The browser suites need the chromium download as well as the package, which
+# pip cannot do on its own — hence the second line.
+-r requirements.txt
+
+playwright==1.60.0
