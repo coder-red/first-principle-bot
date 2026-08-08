@@ -20,7 +20,8 @@ Every one of those passed the Python tests.
 ## Running
 
 ```bash
-pip install playwright && python -m playwright install chromium
+pip install -r requirements-dev.txt
+python -m playwright install chromium
 
 python main.py                     # one shell
 python tests/browser/run_all.py    # another
@@ -30,8 +31,9 @@ Point them elsewhere with `FP_BASE_URL`. Screenshots land in `_shots/`
 (gitignored) — several bugs above were found by looking at those rather than by
 an assertion, so they are worth a glance when something changes visually.
 
-No API key is needed: every suite stubs `/api/chat` and uses `/api/sample-deck`
-as its fixture.
+No API key is needed: every suite stubs `/api/chat/stream` and uses
+`/api/sample-deck` as its fixture. The only unstubbed call a suite makes is
+`/api/explore/sectors`, which is a static list and costs nothing.
 
 ## What each covers
 
@@ -43,6 +45,7 @@ as its fixture.
 | `test_regenerate.py` | Regenerate replacing a turn rather than accumulating one |
 | `test_reframe.py` | Showing the deck's question only when it genuinely reframes |
 | `test_skill_template.py` | `skill/first-principles/assets/deck.html` standalone, no network |
+| `test_access_gate.py` | The token gate: unlock, replay, decline, Escape |
 
 ## A note on assertions
 
