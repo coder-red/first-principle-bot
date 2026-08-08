@@ -135,6 +135,126 @@
 
   toastClose.addEventListener('click', hideToast);
 
+  /* ── access gate ───────────────────────────────────────────────────────
+     Only ever seen on an instance that sets APP_ACCESS_TOKEN. The token is
+     posted once to /api/access and comes back as an HttpOnly cookie, so it is
+     never held in JavaScript and never written to localStorage — a token in
+     localStorage survives on a shared machine long after the tab is closed.
+
+     Resolves true once the server has accepted a token, false if the reader
+     dismisses the dialog. */
+
+  var gateOpen = false;
+
+  function requestAccess() {
+    if (gateOpen) return Promise.resolve(false);
+    gateOpen = true;
+
+    return new Promise(function (resolve) {
+      var modal = el('div', 'gate-modal');
+      modal.setAttribute('role', 'dialog');
+      modal.setAttribute('aria-modal', 'true');
+      modal.setAttribute('aria-label', 'Access token required');
+
+      var backdrop = el('div', 'card-backdrop');
+      var dialog = el('div', 'gate-dialog');
+
+      var form = el('form', 'gate-form');
+      form.appendChild(el('h2', 'gate-title', 'This instance is private'));
+      form.appendChild(el('p', 'gate-blurb',
+        'Every question here costs the owner a model call, so it asks for a '
+        + 'shared access token.'));
+
+      var input = el('input', 'gate-input');
+      input.type = 'password';
+      input.required = true;
+      input.autocomplete = 'current-password';
+      input.setAttribute('aria-label', 'Access token');
+      input.placeholder = 'Access token';
+
+      var error = el('p', 'gate-error');
+      error.setAttribute('role', 'alert');
+      error.hidden = true;
+
+      var submit = el('button', 'gate-submit', 'Unlock');
+      submit.type = 'submit';
+
+      var cancel = el('button', 'gate-cancel', 'Not now');
+      cancel.type = 'button';
+
+      var actions = el('div', 'gate-actions');
+      actions.append(cancel, submit);
+      form.append(input, error, actions);
+      dialog.appendChild(form);
+      modal.append(backdrop, dialog);
+
+      function close(granted) {
+        document.removeEventListener('keydown', onKeydown, true);
+        modal.remove();
+        document.body.classList.remove('modal-open');
+        gateOpen = false;
+        resolve(granted);
+      }
+
+      function onKeydown(e) {
+        if (e.key === 'Escape') { e.preventDefault(); close(false); return; }
+        if (e.key !== 'Tab') return;
+        // Small enough to trap by hand: input, cancel, submit.
+        var items = [input, cancel, submit];
+        var first = items[0];
+        var last = items[items.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault(); first.focus();
+        } else if (!dialog.contains(document.activeElement)) {
+          e.preventDefault(); first.focus();
+        }
+      }
+
+      function fail(message) {
+        error.textContent = message;
+        error.hidden = false;
+        submit.disabled = false;
+        submit.textContent = 'Unlock';
+        input.select();
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var value = input.value.trim();
+        if (!value) return;
+
+        submit.disabled = true;
+        submit.textContent = 'Checking...';
+        error.hidden = true;
+
+        fetch('/api/access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: value }),
+        }).then(function (res) {
+          if (res.ok) { close(true); return; }
+          // 429 means the guess budget is spent; saying so beats "not valid",
+          // which would read as a wrong token and invite more guessing.
+          fail(res.status === 429
+            ? 'Too many attempts. Wait a few minutes and try again.'
+            : 'That token was not accepted.');
+        }).catch(function () {
+          fail('Could not reach the server.');
+        });
+      });
+
+      cancel.addEventListener('click', function () { close(false); });
+      backdrop.addEventListener('click', function () { close(false); });
+      document.addEventListener('keydown', onKeydown, true);
+
+      document.body.classList.add('modal-open');
+      document.body.appendChild(modal);
+      input.focus();
+    });
+  }
+
   /* ── scrolling ─────────────────────────────────────────────────────── */
 
   function scrollToBottom(smooth) {
@@ -304,6 +424,13 @@
 
     fetch('/api/explore/' + encodeURIComponent(slug))
       .then(function (r) {
+        if (r.status === 401) {
+          // A gated instance, and this is the first request the page makes —
+          // so the gate is what a visitor sees on load, which is correct.
+          var gateErr = new Error('sector 401');
+          gateErr.gated = true;
+          throw gateErr;
+        }
         if (!r.ok) throw new Error('sector ' + r.status);
         return r.json();
       })
@@ -316,8 +443,13 @@
           renderQuestions(items);
         }
       })
-      .catch(function () {
+      .catch(function (err) {
         if (explore.slug !== slug) return;
+        if (err && err.gated) {
+          renderExploreNote('Unlock this instance to browse questions.');
+          requestAccess().then(function (ok) { if (ok) loadSector(slug); });
+          return;
+        }
         renderExploreNote('Could not reach the question writer. Try again, or just ask.');
       })
       .finally(function () {
@@ -1439,6 +1571,16 @@
           }
         } catch (e) { /* non-JSON error body */ }
 
+        // A gated instance. Ask for the token here rather than in a toast, so
+        // the reader does not lose the question they just typed. Unwinding
+        // through the catch keeps the `finally` cleanup in one place.
+        if (response.status === 401) {
+          var gateErr = new Error(detail);
+          gateErr.name = 'AccessError';
+          gateErr.granted = await requestAccess();
+          throw gateErr;
+        }
+
         // Being rate limited is not a failure to retry into — the retry would
         // be refused too, and the message already says when to come back.
         if (response.status === 429) {
@@ -1471,6 +1613,28 @@
       if (newThreadBtn) newThreadBtn.hidden = false;
     } catch (err) {
       state.history.pop();   // no assistant turn was recorded
+
+      if (err.name === 'AccessError') {
+        // Leave no wreckage either way: the question is re-added by the retry,
+        // and a reader who declined should not be staring at a dead deck.
+        if (state.lastQuestionEl) state.lastQuestionEl.remove();
+        state.lastQuestionEl = null;
+        deckEl.remove();
+
+        if (err.granted) {
+          // The `finally` below is what clears isWaiting, and sendMessage
+          // returns early while it is set — so the retry has to follow it.
+          setTimeout(function () { sendMessage(text, focus); }, 0);
+        } else {
+          showToast('This instance requires an access token.', {
+            label: 'Enter token',
+            cb: function () {
+              requestAccess().then(function (ok) { if (ok) sendMessage(text, focus); });
+            },
+          });
+        }
+        return;
+      }
 
       if (err.name === 'AbortError') {
         if (state.abortReason === 'timeout') {

@@ -25,15 +25,29 @@ def isolated_provider_env(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def no_optional_features(monkeypatch):
+    """Access control and persistence are off unless a test turns them on.
+
+    Same reasoning as the provider env above: a developer with APP_ACCESS_TOKEN
+    set in their .env would otherwise see every endpoint test 401, and a set
+    STATE_DB would have the suite writing to their real state file.
+    """
+    monkeypatch.delenv("APP_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("STATE_DB", raising=False)
+
+
+@pytest.fixture(autouse=True)
 def fresh_rate_limits():
     """The limiters are module-level and would otherwise carry counts from one
     test into the next — a suite that hits an endpoint nine times would start
     failing on the ninth for reasons that have nothing to do with the test."""
     main.DECK_LIMITER._hits.clear()
     main.EXPLORE_LIMITER._hits.clear()
+    main.ACCESS_LIMITER._hits.clear()
     yield
     main.DECK_LIMITER._hits.clear()
     main.EXPLORE_LIMITER._hits.clear()
+    main.ACCESS_LIMITER._hits.clear()
 
 
 @pytest.fixture(autouse=True)
