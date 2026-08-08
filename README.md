@@ -94,95 +94,195 @@ drill-downs reads as one exploration rather than a pile of unrelated decks. The
 thread is kept in `localStorage` and restored on reload; **New thread** clears
 it.
 
+### Watching it arrive
+
+A deck takes 25–35 seconds, and a spinner for that long reads as a hang. The
+model emits cards in narrative order, so `/api/chat/stream` sends each one as
+its JSON object closes — the descent appears while the rebuild is still being
+written. One call, same cost, same final deck.
+
+The authoritative deck is sent last and may replace what you have already seen,
+because a chain cannot be validated until it is finished. That is the honest
+trade for showing anything early.
+
 ## Setup
 
 Requires Python 3.10+.
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env      # then add your OpenRouter key
+cp .env.example .env      # then add a provider key
 python main.py
 ```
 
-Open http://127.0.0.1:8000. Get a key at
-[openrouter.ai/keys](https://openrouter.ai/keys). `OPENAI_API_KEY` also works if
-you point `API_ENDPOINT` at OpenAI.
+Open http://127.0.0.1:8000.
 
-## Choosing a model
+## Providers
+
+Every free tier is capped **per account per day**, not per visitor. One free
+provider cannot carry a public app: the first handful of visitors spend the
+allowance and everyone after gets a 429. So the app takes a chain and works
+down it.
+
+```bash
+PROVIDERS=groq,gemini,openrouter
+GROQ_API_KEY=...
+GROQ_MODEL=...
+GEMINI_API_KEY=...
+GEMINI_MODELS=gemini-3.6-flash,gemini-3.5-flash   # plural: caps are per model
+```
+
+Each entry needs a key and a model; anything not fully configured is skipped,
+so you can list a provider before you have signed up for it. Base URLs are
+built in for groq, gemini, cerebras, nvidia, mistral, together, openrouter and
+openai — anything else works with `<NAME>_ENDPOINT`.
+
+**The chain is tried in the order you wrote it, and does not rotate.**
+Spreading requests evenly would assume the allowances are comparable, and they
+are not: Groq refills 8000 tokens every minute while a Gemini model gets 20
+requests for the entire day. Rotating between those spends the scarce allowance
+to relieve the renewable one. Put the renewable entry first.
+
+An entry that returns 429/413/402 is put on a cooldown and skipped until it
+expires, rather than costing a doomed call on every request. A malformed deck
+does **not** cool an entry — that is a bad roll from a working provider, not a
+capacity problem.
+
+Leaving `PROVIDERS` unset keeps the older single-endpoint setup
+(`OPENROUTER_API_KEY` + `MODEL` + `FALLBACK_MODELS`) working unchanged.
+
+`tools/check_providers.py` probes what you have configured before you deploy it.
+
+### Choosing a model
 
 **Pin a specific model. Do not use `openrouter/auto` or `openrouter/free`** —
 they are routers that pick a different model per request. One run of
 `openrouter/free` was routed to `nvidia/nemotron-3.5-content-safety`, a
 classifier, which returned 17 characters and an empty answer.
 
-Benchmarked against this app's real workload:
-
-| Model | Deck | Notes |
-| --- | --- | --- |
-| `inclusionai/ling-2.6-flash` | depth 4, bedrock ✓ | Default. Longest reasoning, $0.03/Mtok |
-| `meta-llama/llama-3.3-70b-instruct` | depth 4, bedrock ✓ | First fallback |
-| `mistralai/mistral-small-24b-instruct-2501` | depth 3, bedrock ✓ | Second fallback |
-
-The model must support `response_format: json_object`. `/api/health` reports the
-active model and flags routers.
+The one hard requirement is `response_format: json_object`. A model without it
+returns prose and every deck fails. `/api/health` reports the active chain and
+flags routers.
 
 ## Configuration
 
-All optional except the key. See `.env.example`.
+All optional except a provider key. See `.env.example` for the full set with
+the reasoning behind each default.
 
 | Variable | Default | Notes |
 | --- | --- | --- |
-| `OPENROUTER_API_KEY` | — | Required. `OPENAI_API_KEY` also accepted. |
-| `API_ENDPOINT` | `https://openrouter.ai/api/v1` | Any OpenAI-compatible endpoint. |
-| `MODEL` | `inclusionai/ling-2.6-flash` | Must support structured output. |
-| `FALLBACK_MODELS` | llama-3.3-70b, mistral-small-24b | Comma-separated, tried in order. |
-| `DECK_MAX_TOKENS` | `4000` | Raise if decks truncate. |
+| `PROVIDERS` | — | Comma-separated chain. Each needs `<NAME>_API_KEY` and `<NAME>_MODEL`. |
+| `<NAME>_MODELS` | — | Plural. One chain entry per model, sharing the key. |
+| `<NAME>_MAX_TOKENS` | `DECK_MAX_TOKENS` | Per-provider; they disagree wildly. |
+| `OPENROUTER_API_KEY` | — | The single-endpoint fallback. `OPENAI_API_KEY` also accepted. |
+| `MODEL` | `inclusionai/ling-2.6-flash` | Used only when `PROVIDERS` is unset. |
+| `FALLBACK_MODELS` | llama-3.3-70b, mistral-small-24b | Same. |
+| `DECK_MAX_TOKENS` | `12000` | Reasoning models bill hidden thinking against this. |
 | `DECK_TIMEOUT_SECONDS` | `90` | Ceiling on one model call. Decks normally take 25–35s. |
+| `APP_ACCESS_TOKEN` | — | Set it and the credit-spending endpoints require it. See Security. |
+| `STATE_DB` | — | Set it and cooldowns, limits and pools survive a restart. |
+| `DECK_RATE_LIMIT` / `_WINDOW` | `8` / `300` | Per-IP ceiling on decks. |
+| `EXPLORE_RATE_LIMIT` / `_WINDOW` | `20` / `300` | Per-IP ceiling on sector top-ups. |
+| `ACCESS_RATE_LIMIT` / `_WINDOW` | `10` / `600` | Per-IP ceiling on token guesses. |
+| `LOG_LEVEL` | `INFO` | |
+| `DEBUG_ERRORS` | — | Send raw provider errors to the browser. Not for public. |
 | `HOST` | `127.0.0.1` | Local-only by default — see Security. |
 | `PORT` | `8000` | |
 | `RELOAD` | `1` | Set `0` for non-development runs. |
 
-## Tests
-
-```bash
-python -m pytest tests/ -q
-```
-
-Covers JSON extraction from messy model output, deck normalization, chain
-validation and the repair pass, request validation, drill-down focus injection,
-question reframing, and the model-failure hints.
-
-```bash
-python main.py                     # one shell
-python tests/browser/run_all.py    # another
-```
-
-Six suites that drive the real UI in a real browser. They exist because several
-bugs here were invisible to the Python tests and to reading the code — a deck
-that locked up when a frame was throttled, chip colours leaking onto the depth
-rail, peek cards rendering inside the card instead of below it, regenerate
-corrupting the stored thread only when combined with persistence. See
-[tests/browser/README.md](tests/browser/README.md). No API key needed; they stub
-`/api/chat`.
-
 ## Security
-
-`/api/chat` has **no authentication and no rate limiting**. Anyone who can reach
-the port can spend your model credits. `HOST` defaults to `127.0.0.1` for that
-reason — widen it only behind a proxy that adds auth.
 
 The API key stays server-side and is never sent to the browser. The entire UI is
 built by creating DOM nodes and setting `textContent` — model output never passes
 through `innerHTML`, so there is no markup-injection surface.
 
+**By default the endpoints that spend credits are open.** `/api/chat`,
+`/api/chat/stream` and `/api/explore/<sector>` are rate limited per IP, but a
+rate limit only bounds how *fast* a stranger can spend your money. `HOST`
+defaults to `127.0.0.1` for that reason.
+
+Set `APP_ACCESS_TOKEN` and those three require it. It is a single shared
+secret, not user accounts — it answers "should this person be able to spend my
+credits at all", which is the actual exposure on a public URL. The browser
+posts it once to `/api/access` and receives an `HttpOnly` cookie, so the token
+is never held in JavaScript or in `localStorage`. `/api/health` deliberately
+stays open, because a platform health check calls it and a 401 there would take
+the service down.
+
+Per-IP limits are keyed on `X-Forwarded-For` when present, so they work behind
+a proxy. They are still per-IP, and an IP is cheap.
+
+## Persistence
+
+Provider cooldowns, rate limits and the explore pools all live in process
+memory. That is why `render.yaml` pins `numInstances: 1` — behind two instances
+the limits double and the pools repeat questions.
+
+Restarting also clears all three, and on a host that sleeps that costs money:
+the first request after every wake-up pays for a call to a provider whose daily
+allowance is already spent.
+
+Set `STATE_DB` to a writable path and all three survive a restart, via stdlib
+`sqlite3` — no server, a few kilobytes. It needs a real disk; on an ephemeral
+filesystem the file goes with the container, which is no worse than leaving it
+unset. `/api/health` reports which mode is active.
+
+## Observability
+
+`/api/health` reports the configured chain (without keys), which entries are
+currently cooling, the access-control and persistence modes, and a set of
+counters: decks served verified vs unverified, how often the repair pass fired
+and whether it worked, per-provider errors and cooldowns, and rate-limit
+refusals. The counters are process-local and reset on restart — they are for
+reading off a running deploy, not for scraping.
+
+## Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest tests/ -q
+```
+
+Covers JSON extraction from messy model output, deck normalization, chain
+validation and the repair pass, request validation, drill-down focus injection,
+question reframing, the model-failure hints, the provider chain and its
+cooldowns, rate limiting, streaming, access control, and persistence.
+
+```bash
+python -m playwright install chromium
+
+python main.py                     # one shell
+python tests/browser/run_all.py    # another
+```
+
+Seven suites that drive the real UI in a real browser. They exist because
+several bugs here were invisible to the Python tests and to reading the code — a
+deck that locked up when a frame was throttled, chip colours leaking onto the
+depth rail, peek cards rendering inside the card instead of below it, regenerate
+corrupting the stored thread only when combined with persistence. See
+[tests/browser/README.md](tests/browser/README.md). No API key needed; they stub
+the endpoints that would make model calls.
+
+CI runs both on every push — see [.github/workflows/ci.yml](.github/workflows/ci.yml).
+
 ## Layout
 
 ```
-main.py              FastAPI app, the deck prompt, validation, repair, drill-down
+main.py              FastAPI app: routes, and the singletons they reach for
+fpb/config.py        Environment config and the provider chain
+fpb/providers.py     Cooldowns, pool ordering, pooled HTTP clients
+fpb/deck.py          Normalization, chain validation, the streaming JSON reader
+fpb/prompts.py       The deck and question system prompts
+fpb/schemas.py       Request bodies and message building
+fpb/explore.py       Sectors and the question pool
+fpb/limits.py        Per-IP rate limiting
+fpb/auth.py          Optional shared-token access control
+fpb/store.py         Optional SQLite persistence
+fpb/telemetry.py     Logging and counters
 static/index.html    Shell only
-static/script.js     Transcript, deck modal, prose view, follow-ups
+static/script.js     Transcript, deck modal, prose view, follow-ups, access gate
 static/style.css     Design tokens, light/dark themes, card and prose styles
-tests/test_deck.py   Deck contract, validation and request tests
+tests/               Python suites, one per concern
 tests/browser/       End-to-end suites driving the real UI
 skill/               The method, packaged as a portable Claude skill
 ```
@@ -195,3 +295,7 @@ No build step. No npm. Edit and reload.
 self-check rules as a Claude skill, plus a self-contained HTML template that
 renders a deck as an artifact. It makes no network calls and needs no server.
 See [skill/README.md](skill/README.md).
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
