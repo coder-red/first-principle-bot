@@ -10,6 +10,43 @@ it shipped rather than by version.
 
 ### Added
 
+- Oracle Cloud Always Free deploy set in `deploy/oci/`: a hardened systemd unit,
+  an nginx reverse-proxy config, a systemd-format env template, a redeploy
+  script that rolls back on a failed health check, and a runbook. An Ampere A1
+  instance is the first host where `STATE_DB` earns its keep — it never sleeps
+  and has a real disk, so provider cooldowns stay warm instead of costing a
+  round of exhausted-provider calls after every wake-up.
+- The nginx config carries the security headers the app does not set, including
+  a CSP tight enough to name every third party: the frontend has no inline
+  script and no inline style, so only Google Fonts and one `data:` SVG need
+  allowing.
+- Open-source scaffolding: `CONTRIBUTING.md`, `SECURITY.md`,
+  `CODE_OF_CONDUCT.md`, issue and pull-request templates, and a Dependabot
+  config covering pip and the GitHub Actions the CI workflow pins.
+
+### Changed
+
+- `.gitignore` now ignores the whole `.env.*` family — re-admitting only
+  `.env.example` — plus files that are credentials by shape (`*.pem`, `*.key`,
+  `service-account*.json`). Only `.env` itself was covered before, so a
+  `.env.production` would have been committed.
+
+### Fixed
+
+- The README overstated how much the rate limiter protects. Per-IP keying reads
+  `X-Forwarded-For`, which the client sets: without a proxy that overwrites it,
+  one caller varying the header per request lands in a fresh bucket every time
+  and all three limiters — including the one in front of the access-token
+  exchange — are bypassed. Documented rather than changed, because the header
+  has to be trusted for the limiter to work behind a proxy at all; the shipped
+  nginx config overwrites it with the real peer, which is what makes the per-IP
+  limits mean anything.
+- `render.yaml` never mentioned `APP_ACCESS_TOKEN`, so the blueprint deployed an
+  anonymous instance that spent the configured provider keys for anyone who
+  found the URL. Now present as `sync: false`, with the exposure spelled out.
+
+### Added (earlier in this cycle)
+
 - Optional shared-token access control. Set `APP_ACCESS_TOKEN` and `/api/chat`,
   `/api/chat/stream` and `/api/explore/<sector>` require it; leave it unset and
   nothing changes. The browser exchanges the token once at `/api/access` for an

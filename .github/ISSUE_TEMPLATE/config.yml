@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/coder-red/first-principle-bot/security/advisories/new
+    about: Report privately. Please do not open a public issue.
+  - name: A deck that is wrong rather than broken
+    url: https://github.com/coder-red/first-principle-bot/discussions
+    about: The validator checks form, not truth. Disagreeing with a tag is a discussion, not a bug.

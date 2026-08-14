@@ -190,6 +190,26 @@ the reasoning behind each default.
 | `PORT` | `8000` | |
 | `RELOAD` | `1` | Set `0` for non-development runs. |
 
+## Deploying
+
+Whatever you deploy to, set `APP_ACCESS_TOKEN` — otherwise anyone who finds the
+URL spends your provider credits, and the rate limits only bound how fast. Set
+`HOST=0.0.0.0` and `RELOAD=0` on any host that is not a bare VM behind a proxy.
+
+**Oracle Cloud Always Free (recommended)** — an Ampere A1 instance never sleeps
+and has a real disk, which is what `STATE_DB` needs to be worth setting: warm
+provider cooldowns are the difference between a restart being free and a
+restart costing a round of calls to providers whose daily allowance is already
+spent. Full runbook, systemd unit and nginx config in
+[deploy/oci/](deploy/oci/README.md).
+
+**Render** — [`render.yaml`](render.yaml) is a working blueprint. Simpler to
+stand up, but the free plan sleeps and its filesystem is ephemeral, so
+cooldowns and rate limits reset on every wake-up.
+
+Behind any reverse proxy, make it **overwrite** `X-Forwarded-For` with the real
+peer rather than appending to it — see Security below.
+
 ## Security
 
 The API key stays server-side and is never sent to the browser. The entire UI is
@@ -209,8 +229,18 @@ is never held in JavaScript or in `localStorage`. `/api/health` deliberately
 stays open, because a platform health check calls it and a 401 there would take
 the service down.
 
-Per-IP limits are keyed on `X-Forwarded-For` when present, so they work behind
-a proxy. They are still per-IP, and an IP is cheap.
+Per-IP limits are keyed on the first entry of `X-Forwarded-For` when present,
+so they work behind a proxy. That header is set by the client, so the keying is
+only as trustworthy as whatever sits in front of the app: **reachable without a
+proxy, or behind one that appends rather than overwrites the header, a caller
+can vary it per request and every request lands in a fresh bucket.** That
+applies to all three limiters, including the one guarding the access-token
+exchange. Deploy behind a proxy that overwrites `X-Forwarded-For` with the real
+peer — Render, Fly, Cloudflare and nginx with `real_ip_header` all do — and
+treat `APP_ACCESS_TOKEN`, not the limiter, as the actual control.
+
+The full threat model, and how to report a vulnerability, is in
+[SECURITY.md](SECURITY.md).
 
 ## Persistence
 
@@ -295,6 +325,17 @@ No build step. No npm. Edit and reload.
 self-check rules as a Claude skill, plus a self-contained HTML template that
 renders a deck as an artifact. It makes no network calls and needs no server.
 See [skill/README.md](skill/README.md).
+
+## Contributing
+
+Bug reports and pull requests are welcome. No API key is needed to work on most
+of this — the Python suite never makes a model call, and the browser suites
+stub the endpoints that would.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to set up, what a good change
+looks like, and which parts want care. Please report vulnerabilities privately
+— see [SECURITY.md](SECURITY.md) — and note the
+[Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## Licence
 

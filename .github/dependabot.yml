@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Versions are pinned exactly in requirements*.txt, so nothing moves without
+  # a PR that CI has run both suites against.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      python-packages:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
