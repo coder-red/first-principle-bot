@@ -55,6 +55,15 @@ services:
       - key: PUBLIC_URL
         value: https://first-principle-bot.onrender.com
 
+      # SET THIS. Without it the deploy is anonymous: /api/chat,
+      # /api/chat/stream and /api/explore all spend the keys above for anyone
+      # who finds the URL, and the per-IP limits below only bound how fast.
+      # They are keyed on X-Forwarded-For, which Render overwrites with the
+      # real peer — but the token, not the limiter, is the actual control.
+      # Leave it blank in the dashboard and the instance stays open on purpose.
+      - key: APP_ACCESS_TOKEN
+        sync: false
+
       # Per-IP ceilings. A deck is the expensive call; sectors only cost one
       # when the pool actually needs topping up.
       - key: DECK_RATE_LIMIT

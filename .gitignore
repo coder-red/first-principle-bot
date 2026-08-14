@@ -1,4 +1,17 @@
+# Real credentials. `.env.example` is the only env file that belongs in the
+# repo, so ignore the whole family and re-admit that one.
 .env
+.env.*
+!.env.example
+
+# Anything else that is a credential by shape rather than by name.
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+
 __pycache__/
 *.pyc
 .pytest_cache/

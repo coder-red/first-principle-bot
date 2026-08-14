@@ -1,0 +1,82 @@
+# First Principle Bot — systemd unit for an OCI Ampere A1 instance.
+#
+#   sudo install -m 644 deploy/oci/fpb.service /etc/systemd/system/fpb.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now fpb
+#
+# Assumes the layout the runbook builds: code at /opt/fpb owned by the `fpb`
+# user, a venv at /opt/fpb/.venv, config at /etc/fpb/fpb.env, state in
+# /var/lib/fpb.
+
+[Unit]
+Description=First Principle Bot
+Documentation=https://github.com/coder-red/first-principle-bot
+# network-online, not just network: the app resolves provider hostnames on the
+# first request, and a boot-time DNS failure would only show up as a dead
+# provider chain.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=fpb
+Group=fpb
+
+# REQUIRED. main.py serves static/index.html by a relative path, so the app
+# only finds its own frontend when systemd starts it from the repo root.
+WorkingDirectory=/opt/fpb
+
+# Provider keys and APP_ACCESS_TOKEN live here, mode 0640 root:fpb — out of the
+# deploy directory, so a `git pull` can never touch them and a stray `git add`
+# can never stage them. main.py still calls load_dotenv(), which does not
+# override variables that are already set, so these win even if a .env exists.
+EnvironmentFile=/etc/fpb/fpb.env
+
+ExecStart=/opt/fpb/.venv/bin/python main.py
+
+Restart=always
+RestartSec=3
+# Give up only if it is crash-looping, so a bad deploy is visible in
+# `systemctl status` instead of being restarted forever.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fpb
+
+# ── Hardening ────────────────────────────────────────────────────────────
+# The app reads env vars, talks HTTPS to provider APIs, and writes one SQLite
+# file. Everything below that is denied.
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+# ProtectSystem=strict makes the whole filesystem read-only. This is the one
+# hole: STATE_DB, plus the -wal and -shm files SQLite writes beside it.
+ReadWritePaths=/var/lib/fpb
+
+# /opt/fpb is read-only under the line above, so CPython cannot write
+# __pycache__ there. It tolerates that silently; this just makes it explicit
+# rather than a mystery few-hundred-ms on every start.
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
