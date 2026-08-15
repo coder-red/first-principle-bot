@@ -1,5 +1,6 @@
 import io, sys, pathlib
 from playwright.sync_api import sync_playwright
+from harness import stub_web_fonts
 import os
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SHOTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_shots")
@@ -21,6 +22,7 @@ with sync_playwright() as p:
     for theme,w in [("dark",900),("light",900),("dark",380)]:
         print(f"\n=== {theme}@{w} ===")
         pg=b.new_page(viewport={"width":w,"height":900}, device_scale_factor=2)
+        stub_web_fonts(pg)
         errs=[]
         pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.on("console", lambda m: errs.append(m.text) if m.type=="error" else None)
