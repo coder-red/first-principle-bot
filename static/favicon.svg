@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- The bedrock glyph. ATOMIC is the one tag the whole descent aims at, and
+       the rail already draws it as a diamond, so the mark is the app's own
+       vocabulary rather than a new one.
+
+       Colours are --tag-atomic from style.css: the light value on a light UI,
+       the dark value on a dark one. An SVG favicon can carry its own media
+       query, which an .ico cannot, so the mark stays legible against either
+       browser chrome instead of disappearing into one of them. -->
+  <style>
+    .bedrock { fill: #6D28D9; }
+    @media (prefers-color-scheme: dark) { .bedrock { fill: #A78BFA; } }
+  </style>
+  <path class="bedrock" d="M16 2 L30 16 L16 30 L2 16 Z"/>
+</svg>

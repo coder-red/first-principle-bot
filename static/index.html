@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>First Principle Bot</title>
   <meta name="description" content="Understand anything from the ground up — strict first principles explanations">
+  <!-- Declared explicitly so the browser stops guessing at /favicon.ico. That
+       guess 404s, and Chromium logs a 404 as a console error, which the browser
+       suites count as a JS error — an intermittent failure depending on whether
+       the request landed before the assertion. -->
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
