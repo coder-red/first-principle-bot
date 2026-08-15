@@ -6,6 +6,7 @@ os.makedirs(SHOTS, exist_ok=True)
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 from playwright.sync_api import sync_playwright
+from harness import stub_web_fonts
 
 
 def ndjson_done(deck):
@@ -23,8 +24,13 @@ def check(name, cond, detail=""):
 
 def new_page(browser, theme, width, height=860):
     page = browser.new_page(viewport={"width": width, "height": height})
+    stub_web_fonts(page)
     errors, bodies = [], []
     def note(t):
+        # Kept as a second line of defence. It only ever matched errors that
+        # name the host in their message; a failed subresource does not — the
+        # URL is in the console message's location, not its text — which is
+        # why stub_web_fonts above removes the request instead of the noise.
         if "fonts.g" not in t and "ERR_CONNECTION" not in t: errors.append(t)
     page.on("pageerror", lambda e: note(str(e)))
     page.on("console", lambda m: note(m.text) if m.type == "error" else None)

@@ -14,6 +14,7 @@ import os
 import sys
 
 from playwright.sync_api import sync_playwright
+from harness import stub_web_fonts
 
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -71,6 +72,7 @@ def wire(page, deck, state):
 
 def fresh(browser, deck, state):
     page = browser.new_page(viewport={"width": 1280, "height": 900})
+    stub_web_fonts(page)
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
     wire(page, deck, state)

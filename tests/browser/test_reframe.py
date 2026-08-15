@@ -1,5 +1,6 @@
 import copy, json, sys, urllib.request
 from playwright.sync_api import sync_playwright
+from harness import stub_web_fonts
 
 
 def ndjson_done(deck):
@@ -28,6 +29,7 @@ with sync_playwright() as p:
     for name,deck in [("echoed question", ECHO), ("genuine reframe", REFRAMED)]:
         print(f"\n=== {name} ===")
         pg=b.new_page(viewport={"width":1280,"height":900}, device_scale_factor=2)
+        stub_web_fonts(pg)
         errs=[]; pg.on("pageerror", lambda e: errs.append(str(e)))
         def h(route, d=None): pass
         def make(d):

@@ -1,5 +1,6 @@
 import copy, json, sys, urllib.request
 from playwright.sync_api import sync_playwright
+from harness import stub_web_fonts
 
 
 def ndjson_done(deck):
@@ -23,6 +24,7 @@ def check(n,c,d=""):
 
 def page_with(b, deck, theme="dark", w=1280):
     pg=b.new_page(viewport={"width":w,"height":900})
+    stub_web_fonts(pg)
     errs=[]
     pg.on("pageerror", lambda e: errs.append(str(e)))
     pg.on("console", lambda m: errs.append(m.text) if m.type=="error" else None)

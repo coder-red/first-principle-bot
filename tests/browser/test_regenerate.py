@@ -1,5 +1,6 @@
 import json, sys, urllib.request
 from playwright.sync_api import sync_playwright
+from harness import stub_web_fonts
 
 
 def ndjson_done(deck):
@@ -20,6 +21,7 @@ def check(n,c,d=""):
 
 with sync_playwright() as p:
     b=p.chromium.launch(); pg=b.new_page(viewport={"width":1280,"height":900})
+    stub_web_fonts(pg)
     errs=[]; pg.on("pageerror", lambda e: errs.append(str(e)))
     def h(r): r.fulfill(status=200, content_type="application/x-ndjson", body=ndjson_done(DECK))
     pg.route("**/api/chat/stream", h)
