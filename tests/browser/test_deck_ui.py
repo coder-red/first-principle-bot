@@ -63,6 +63,8 @@ with sync_playwright() as p:
         page.wait_for_selector(".open-deck", timeout=8000)
         check("answer card renders", page.is_visible(".open-deck"), page.inner_text(".answer-meta"))
         check("followup chips render", page.locator(".followup-chip").count() == 3)
+        check("live deck carries the unreviewed line",
+              "content unreviewed" in (page.text_content(".deck-provenance.is-live") or ""))
         check("answer states the bedrock inline",
               "accelerating electric charge" in page.inner_text(".answer-bedrock-text"))
         check("rail shows one tick per card",
