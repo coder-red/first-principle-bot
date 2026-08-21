@@ -105,3 +105,41 @@ def test_save_deck_never_overwrites(tmp_path):
             dict(SAMPLE_DECK, verified=True), "test-model", "t")
     assert save_deck(*args) is not None
     assert save_deck(*args) is None
+
+
+# ── endpoints ────────────────────────────────────────────────────────────
+
+import main  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+
+@pytest.fixture
+def client_with_library(tmp_path, monkeypatch):
+    write_deck(tmp_path, "why-is-the-sky-blue")
+    monkeypatch.setattr(main, "LIBRARY", Library.load(str(tmp_path)))
+    return TestClient(main.app)
+
+
+def test_library_index_endpoint(client_with_library):
+    got = client_with_library.get("/api/library").json()
+    assert got["decks"][0]["slug"] == "why-is-the-sky-blue"
+
+
+def test_library_deck_endpoint(client_with_library):
+    got = client_with_library.get("/api/library/why-is-the-sky-blue").json()
+    assert got["meta"]["reviewed"] is True
+    assert got["cards"]
+
+
+def test_library_unknown_slug_is_404(client_with_library):
+    assert client_with_library.get("/api/library/nope").status_code == 404
+
+
+def test_library_stays_open_when_access_control_is_on(client_with_library,
+                                                      monkeypatch):
+    """Same rationale as /api/health: these spend no credits, and a 401 here
+    would blank the shelf for anyone who has not entered the token yet."""
+    monkeypatch.setenv("APP_ACCESS_TOKEN", "sekrit")
+    assert client_with_library.get("/api/library").status_code == 200
+    assert client_with_library.get(
+        "/api/library/why-is-the-sky-blue").status_code == 200

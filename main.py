@@ -58,6 +58,7 @@ from fpb.explore import (
     normalize_questions,
     sector_by_slug,
 )
+from fpb.library import LIBRARY_ROOT, Library
 from fpb.limits import RateLimiter, client_key, enforce
 from fpb.prompts import QUESTIONS_SYSTEM, DECK_SYSTEM_PROMPT
 from fpb.providers import (
@@ -99,6 +100,12 @@ if STORE is not None:
     LOG.info("persisting cooldowns, rate limits and explore pools to %s", STORE.path)
 
 PROVIDER_POOL = ProviderPool(store=STORE)
+
+# Loaded once at startup. Publishing a deck means committing it and
+# deploying — the review gate is the git history, not an admin route.
+LIBRARY = Library.load(LIBRARY_ROOT)
+if LIBRARY.count():
+    LOG.info("library: %d reviewed decks loaded", LIBRARY.count())
 
 # A deck is the expensive call; sectors are cheaper but still cost one each.
 DECK_LIMITER = RateLimiter(
@@ -371,6 +378,21 @@ async def generate_questions(sector: dict, avoid: List[str], count: int) -> List
 @app.get("/api/explore/sectors")
 async def explore_sectors():
     return json_response({"sectors": SECTORS})
+
+
+# Open on purpose: a library deck spends no credits, so gating it would only
+# blank the shelf for readers who have not entered the token yet.
+@app.get("/api/library")
+async def library_index():
+    return json_response({"decks": LIBRARY.index()})
+
+
+@app.get("/api/library/{slug}")
+async def library_deck(slug: str):
+    deck = LIBRARY.deck(slug)
+    if deck is None:
+        raise HTTPException(status_code=404, detail=f"No library deck: {slug}")
+    return json_response(deck)
 
 
 @app.get("/api/explore/{slug}")
