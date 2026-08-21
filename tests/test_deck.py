@@ -411,6 +411,13 @@ def test_malformed_history_is_422_not_500(client):
     assert response.status_code == 422
 
 
+def test_whitespace_only_message_is_422(client):
+    """min_length counts spaces, so '   ' used to reach the model and spend a
+    real call on a question that does not exist."""
+    response = client.post("/api/chat", json={"message": "   "})
+    assert response.status_code == 422
+
+
 # ── build_messages / focus ─────────────────────────────────────────────────
 
 def test_build_messages_orders_system_history_then_prompt():

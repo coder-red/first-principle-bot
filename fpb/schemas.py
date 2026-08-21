@@ -7,7 +7,7 @@ the model at your expense.
 
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from fpb.prompts import DECK_SYSTEM_PROMPT
 
@@ -34,6 +34,15 @@ class ChatRequest(BaseModel):
     # long session never 422s, while the body stays bounded.
     history: List[HistoryMessage] = Field(default_factory=list, max_length=60)
     focus: Optional[Focus] = None
+
+    @field_validator("message")
+    @classmethod
+    def message_has_content(cls, value: str) -> str:
+        # min_length counts spaces, so without this "   " reaches the model
+        # and spends a real call on a question that does not exist.
+        if not value.strip():
+            raise ValueError("message must not be blank")
+        return value
 
 
 def focus_instruction(focus: Focus) -> str:
