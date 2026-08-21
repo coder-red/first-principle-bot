@@ -771,7 +771,7 @@
     });
   }
 
-  function buildQuiz(deck) {
+  function buildQuiz(deck, presetQuestions) {
     var wrap = el('div', 'quiz');
 
     if (!deck.verified) {
@@ -785,7 +785,7 @@
       return wrap;
     }
 
-    var questions = quizQuestions(deck);
+    var questions = presetQuestions || quizQuestions(deck);
     if (questions.length < 2) {
       wrap.appendChild(el('p', 'quiz-blocked-body',
         'This deck has too few tagged claims to test.'));
@@ -843,6 +843,7 @@
           answered = true;
           var right = tag === q.card.tag;
           if (right) matched++;
+          reviewRecord(q.card, deck, right);
 
           opts.querySelectorAll('.quiz-option').forEach(function (b) { b.disabled = true; });
           btn.classList.add(right ? 'is-right' : 'is-wrong');
@@ -882,6 +883,103 @@
 
     renderQuestion();
     return wrap;
+  }
+
+  /* ── spaced review ─────────────────────────────────────────────────────
+     Quiz answers feed a review queue: SM-2 with the numbers filed off. A
+     fixed ladder of intervals, matched climbs one rung, missed falls to the
+     bottom. It is honest about being a ladder, not science — the point is a
+     reason to come back tomorrow, not a memory model.
+     Progress is per-browser by design: no accounts, nothing leaves the
+     machine. */
+  var REVIEW_KEY = 'fp_review';
+  var REVIEW_CAP = 500;
+  var REVIEW_ROUND = 12;
+  var DAY_MS = 24 * 60 * 60 * 1000;
+  var REVIEW_LADDER = [1, 3, 7, 16, 35];  /* days */
+
+  function reviewLoad() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(REVIEW_KEY) || 'null');
+      if (raw && raw.v === 1 && Array.isArray(raw.claims)) return raw.claims;
+    } catch (e) {}
+    return [];
+  }
+
+  function reviewSave(claims) {
+    if (claims.length > REVIEW_CAP) {
+      claims = claims.slice().sort(function (a, b) { return b.ts - a.ts; })
+        .slice(0, REVIEW_CAP);
+    }
+    try {
+      localStorage.setItem(REVIEW_KEY, JSON.stringify({ v: 1, claims: claims }));
+    } catch (e) {}
+  }
+
+  function reviewRecord(card, deck, matched) {
+    if (!card || !card.principle || !card.tag) return;
+    var now = Date.now();
+    var slug = (card && card._reviewSlug) ||
+               (deck && deck.meta && deck.meta.slug) || '';
+    var id = slug + '|' + card.principle;
+    var claims = reviewLoad();
+    var entry = null;
+    for (var i = 0; i < claims.length; i++) {
+      if (claims[i].id === id) { entry = claims[i]; break; }
+    }
+    if (!entry) {
+      entry = { id: id, claim: card.principle, tag: card.tag, deckSlug: slug,
+                deckTopic: (deck && deck.topic) || '', rung: 0, due: 0, ts: 0 };
+      claims.push(entry);
+    }
+    entry.rung = matched ? Math.min(entry.rung + 1, REVIEW_LADDER.length - 1) : 0;
+    /* A fresh claim starts at the bottom rung either way; only repeats climb. */
+    if (entry.ts === 0) entry.rung = 0;
+    entry.due = now + REVIEW_LADDER[entry.rung] * DAY_MS;
+    entry.ts = now;
+    reviewSave(claims);
+  }
+
+  function reviewDue() {
+    var now = Date.now();
+    return reviewLoad().filter(function (c) { return c.due <= now; });
+  }
+
+  function renderReviewBanner() {
+    var existing = $('#review-banner');
+    if (existing) existing.remove();
+    var due = reviewDue();
+    if (!due.length) return;
+    var bar = el('div', 'review-banner');
+    bar.id = 'review-banner';
+    bar.appendChild(el('span', 'review-banner-text',
+      due.length + ' claim' + (due.length === 1 ? '' : 's') + ' due for review'));
+    var go = el('button', 'review-banner-go', 'Review now');
+    go.type = 'button';
+    go.addEventListener('click', startReview);
+    bar.appendChild(go);
+    messagesEl.parentNode.insertBefore(bar, messagesEl);
+  }
+
+  function startReview() {
+    var due = shuffled(reviewDue()).slice(0, REVIEW_ROUND);
+    if (!due.length) return;
+    var pseudoDeck = { topic: 'Review', verified: true, cards: [], meta: null };
+    var questions = due.map(function (c) {
+      var card = { principle: c.claim, tag: c.tag, explanation: '',
+                   title: c.deckTopic, phase: 'descent', level: 1,
+                   _reviewSlug: c.deckSlug };
+      var distractors = shuffled(QUIZ_TAGS.filter(function (t) { return t !== c.tag; })).slice(0, 3);
+      return { card: card, options: shuffled([c.tag].concat(distractors)) };
+    });
+    var welcome = document.querySelector('.welcome');
+    if (welcome) welcome.remove();
+    var block = el('div', 'answer review-round');
+    block.appendChild(el('p', 'review-round-head', 'Review — claims from your past decks'));
+    block.appendChild(buildQuiz(pseudoDeck, questions));
+    messagesEl.appendChild(block);
+    renderReviewBanner();  /* re-render; the round may empty the queue */
+    scrollToBottom(true);
   }
 
   function deckToText(deck) {
@@ -1844,6 +1942,7 @@
   }
 
   initExplore();
+  renderReviewBanner();
   handleInput();
 
   if (restoreThread()) {

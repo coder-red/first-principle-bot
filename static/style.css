@@ -2335,3 +2335,30 @@ footer {
   margin: var(--space-2) 0 0;
 }
 .deck-provenance.is-reviewed { color: var(--tag-verified); }
+
+/* ── review banner & round ──────────────────────────────────────────────
+   The comeback mechanism: claims answered in past quizzes resurface on a
+   fixed ladder. The banner only exists while something is actually due. */
+.review-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin: var(--space-2) 0;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.review-banner-text { font-size: var(--text-sm); color: var(--color-text-secondary); }
+.review-banner-go {
+  cursor: pointer;
+  font-size: var(--text-sm);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border-strong);
+  background: transparent;
+  color: inherit;
+}
+.review-banner-go:hover { background: var(--color-surface-hover); }
+.review-round-head { font-weight: 600; margin: 0 0 var(--space-2); }
