@@ -46,7 +46,11 @@ with sync_playwright() as p:
     pg.wait_for_selector(".open-deck"); pg.click(".open-deck"); pg.wait_for_selector(".card-face")
     pg.locator(".view-tab").nth(2).click(); pg.wait_for_timeout(300)
     check("quiz view opens", pg.is_visible(".view-quiz"))
-    check("asks about a claim, not recall", "How well is this known" in pg.inner_text(".quiz-ask"))
+    check("asks about a claim, not recall", "How solid is this claim" in pg.inner_text(".quiz-ask"))
+    check("first question explains the game", "Guess its" in pg.inner_text(".quiz-intro"))
+    check("options are plain sentences, tag word demoted",
+          "could not be otherwise" in pg.inner_text(".quiz-options").lower()
+          or "law of nature" in pg.inner_text(".quiz-options"))
     check("4 tag options", pg.locator(".quiz-option").count()==4)
     check("claim text is a principle from the deck",
           any(pg.inner_text(".quiz-claim").strip() == c["principle"] for c in GOOD["cards"]),

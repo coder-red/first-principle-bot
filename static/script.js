@@ -546,12 +546,21 @@
 
   /* ── epistemic tags ────────────────────────────────────────────────── */
 
+  /* `plain` is the quiz-facing wording: the tag words are this app's own
+     vocabulary, and a first-time reader meeting five of them as bare answer
+     options learns nothing except that they are confused. The sentence does
+     the teaching; the tag word rides along as an accent until it is familiar. */
   var TAG_META = {
-    ATOMIC:     { glyph: '◆', label: 'Atomic',     hint: 'Irreducible — cannot be broken down further' },
-    VERIFIED:   { glyph: '✓', label: 'Verified',   hint: 'Empirically confirmed, but could be otherwise' },
-    CONVENTION: { glyph: '≈', label: 'Convention', hint: 'Widely accepted, not proven' },
-    ASSUMPTION: { glyph: '○', label: 'Assumption', hint: 'Taken for granted' },
-    UNKNOWN:    { glyph: '?', label: 'Unknown',    hint: 'Not known — reasoning stops here' },
+    ATOMIC:     { glyph: '◆', label: 'Atomic',     hint: 'Irreducible — cannot be broken down further',
+                  plain: 'A law of nature or logic — could not be otherwise' },
+    VERIFIED:   { glyph: '✓', label: 'Verified',   hint: 'Empirically confirmed, but could be otherwise',
+                  plain: 'Proven by evidence — but could have been different' },
+    CONVENTION: { glyph: '≈', label: 'Convention', hint: 'Widely accepted, not proven',
+                  plain: 'True mainly because everyone agrees it is' },
+    ASSUMPTION: { glyph: '○', label: 'Assumption', hint: 'Taken for granted',
+                  plain: 'Taken for granted — nobody has proven it' },
+    UNKNOWN:    { glyph: '?', label: 'Unknown',    hint: 'Not known — reasoning stops here',
+                  plain: 'Nobody actually knows' },
   };
 
   var PHASE_LABEL = {
@@ -827,7 +836,13 @@
       body.appendChild(el('p', 'quiz-progress',
         'Claim ' + (index + 1) + ' of ' + questions.length));
       body.appendChild(el('blockquote', 'quiz-claim', q.card.principle));
-      body.appendChild(el('p', 'quiz-ask', 'How well is this known?'));
+      body.appendChild(el('p', 'quiz-ask', 'How solid is this claim?'));
+      if (index === 0) {
+        body.appendChild(el('p', 'quiz-intro',
+          'The deck rated every claim by how well it is known. Guess its '
+          + 'rating — and if you disagree with the deck, you might be the '
+          + 'one who is right.'));
+      }
 
       var opts = el('div', 'quiz-options');
       var answered = false;
@@ -837,7 +852,10 @@
         var btn = el('button', 'quiz-option');
         btn.type = 'button';
         btn.appendChild(el('span', 'quiz-option-glyph tag-text-' + tag.toLowerCase(), meta.glyph));
-        btn.appendChild(el('span', 'quiz-option-label', meta.label));
+        var optText = el('span', 'quiz-option-text');
+        optText.appendChild(el('span', 'quiz-option-label', meta.plain));
+        optText.appendChild(el('span', 'quiz-option-tagword', meta.label));
+        btn.appendChild(optText);
         btn.addEventListener('click', function () {
           if (answered) return;
           answered = true;

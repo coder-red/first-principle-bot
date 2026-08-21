@@ -2362,3 +2362,18 @@ footer {
 }
 .review-banner-go:hover { background: var(--color-surface-hover); }
 .review-round-head { font-weight: 600; margin: 0 0 var(--space-2); }
+
+/* ── plain-language quiz options ────────────────────────────────────────
+   The sentence teaches; the tag word rides along until it means something. */
+.quiz-option-text { display: flex; flex-direction: column; gap: 2px; text-align: left; }
+.quiz-option-tagword {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.quiz-intro {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-3);
+}
