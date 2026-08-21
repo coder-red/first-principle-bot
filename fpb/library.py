@@ -70,3 +70,26 @@ class Library:
 
     def deck(self, slug: str) -> Optional[dict]:
         return self._decks.get(slug)
+
+
+def save_deck(root: str, question: str, sector: str, deck: dict,
+              model: str, generated_at: str) -> Optional[str]:
+    """Write a deck into the library, or refuse.
+
+    The two refusals are the whole point: an unverified deck must never gain
+    `reviewed: true`, and a re-run of the build tool must never silently
+    replace a deck a human already read.
+    """
+    if not deck.get("verified"):
+        return None
+    slug = slug_for(question)
+    path = os.path.join(root, slug + ".json")
+    if os.path.exists(path):
+        return None
+    payload = dict(deck)
+    payload["meta"] = {"slug": slug, "sector": sector, "model": model,
+                      "generated_at": generated_at, "reviewed": True}
+    os.makedirs(root, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    return slug

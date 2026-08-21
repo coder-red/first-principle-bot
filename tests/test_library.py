@@ -7,7 +7,7 @@ import json
 
 import pytest
 
-from fpb.library import Library, slug_for
+from fpb.library import Library, save_deck, slug_for
 from fpb.sample import SAMPLE_DECK
 
 
@@ -79,3 +79,29 @@ def test_index_is_sorted_by_sector_then_topic(tmp_path):
     write_deck(tmp_path, "a-deck", sector="money")
     sectors = [e["sector"] for e in Library.load(str(tmp_path)).index()]
     assert sectors == ["money", "physics"]
+
+
+# ── publishing ───────────────────────────────────────────────────────────
+
+def test_save_deck_writes_a_verified_deck(tmp_path):
+    slug = save_deck(str(tmp_path), SAMPLE_DECK["question"], "physics",
+                     dict(SAMPLE_DECK, verified=True), "test-model",
+                     "2026-08-21T00:00:00Z")
+    assert slug == slug_for(SAMPLE_DECK["question"])
+    saved = json.loads((tmp_path / (slug + ".json")).read_text(encoding="utf-8"))
+    assert saved["meta"]["reviewed"] is True
+    assert saved["meta"]["sector"] == "physics"
+
+
+def test_save_deck_refuses_an_unverified_deck(tmp_path):
+    slug = save_deck(str(tmp_path), "Why?", "physics",
+                     dict(SAMPLE_DECK, verified=False), "test-model", "t")
+    assert slug is None
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_save_deck_never_overwrites(tmp_path):
+    args = (str(tmp_path), SAMPLE_DECK["question"], "physics",
+            dict(SAMPLE_DECK, verified=True), "test-model", "t")
+    assert save_deck(*args) is not None
+    assert save_deck(*args) is None
