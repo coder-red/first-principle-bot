@@ -1,0 +1,38 @@
+# sector: question — one per line. Lines starting with # are ignored.
+# 4 per sector, matching fpb/explore.py sector slugs.
+career: Why does a university degree get you hired?
+career: What is a salary actually paying for?
+career: Why do job interviews exist?
+career: What makes a job prestigious?
+health: Why do we have to sleep?
+health: Why does exercise make you healthier instead of wearing you out?
+health: What is a calorie, really?
+health: Why do vaccines work?
+football: Why does a curved free kick curve?
+football: Why is football so low-scoring compared to other sports?
+football: What actually tires a player out over ninety minutes?
+football: Why does home advantage exist?
+history: Why did farming replace hunting and gathering?
+history: Why do empires fall?
+history: Why did the industrial revolution happen where it did?
+history: How do we know what happened before writing existed?
+money: What is money, really?
+money: Why does inflation happen?
+money: What is a bank actually doing with your deposit?
+money: Why does gold have value?
+mind: Why can we not remember being a baby?
+mind: What is a habit made of?
+mind: Why do we dream?
+mind: What is attention?
+physics: Why is the sky blue?
+physics: Why can nothing travel faster than light?
+physics: Why does ice float when almost every other solid sinks?
+physics: What is heat?
+technology: How does a computer actually add two numbers?
+technology: What is actually moving when electricity flows?
+technology: How does GPS know where you are?
+technology: Why can a phone battery not last a month?
+everyday: Why does glue stick?
+everyday: Why is glass transparent?
+everyday: Why does bread rise?
+everyday: Why does a mirror flip left to right but not up and down?
