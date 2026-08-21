@@ -2321,3 +2321,17 @@ footer {
 }
 
 #messages { min-height: 100%; }
+
+/* ── library shelf & provenance ─────────────────────────────────────────
+   Reviewed decks come from the repo, not a model call, and both facts are
+   worth signalling: the shelf sits above the generated suggestions, and
+   every deck says out loud whether a human has read it. */
+#library-shelf { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-2); }
+#library-shelf:empty { display: none; }
+.library-chip .chip-hook { color: var(--tag-verified); }
+.deck-provenance {
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  margin: var(--space-2) 0 0;
+}
+.deck-provenance.is-reviewed { color: var(--tag-verified); }

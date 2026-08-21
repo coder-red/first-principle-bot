@@ -379,6 +379,66 @@
     suggestionsEl.classList.add('reshuffled');
   }
 
+  /* ── library ────────────────────────────────────────────────────────────
+     Reviewed decks, served from disk: instant, free, and the only decks in
+     the app whose content a human has actually read. The index is fetched
+     once and cached; a failure just means an empty shelf. */
+  var libraryIndex = null;
+  function loadLibraryIndex() {
+    if (libraryIndex) return Promise.resolve(libraryIndex);
+    return fetch('/api/library')
+      .then(function (r) { return r.ok ? r.json() : { decks: [] }; })
+      .then(function (data) { libraryIndex = data.decks || []; return libraryIndex; })
+      .catch(function () { return []; });
+  }
+
+  function renderShelf(slug) {
+    var host = $('#library-shelf');
+    if (!host) {
+      if (!suggestionsEl) return;
+      host = el('div', null);
+      host.id = 'library-shelf';
+      suggestionsEl.parentNode.insertBefore(host, suggestionsEl);
+    }
+    host.replaceChildren();
+    loadLibraryIndex().then(function (decks) {
+      if (explore.slug !== slug) return;  // a later pill won the race
+      decks.filter(function (d) { return d.sector === slug; })
+        .forEach(function (d) {
+          var chip = el('button', 'suggestion-chip library-chip');
+          chip.type = 'button';
+          var body = el('span', 'chip-body');
+          body.appendChild(el('span', 'chip-hook', '✓ reviewed'));
+          body.appendChild(el('span', 'chip-text', d.question));
+          chip.appendChild(body);
+          chip.appendChild(el('span', 'chip-arrow', '→'));
+          chip.addEventListener('click', function () { openLibraryDeck(d.slug); });
+          host.appendChild(chip);
+        });
+    });
+  }
+
+  function openLibraryDeck(slug) {
+    fetch('/api/library/' + encodeURIComponent(slug))
+      .then(function (r) {
+        if (!r.ok) throw new Error('library deck missing');
+        return r.json();
+      })
+      .then(function (deck) {
+        addUserMessage(deck.question);
+        var block = addPendingDeck();
+        renderDeck(block, deck);
+        state.history.push({ role: 'user', content: deck.question });
+        state.history.push({ role: 'assistant', content: deckSummary(deck) });
+        state.turns.push({ q: deck.question, deck: deck, trail: [], focus: null });
+        saveThread();
+        if (newThreadBtn) newThreadBtn.hidden = false;
+      })
+      .catch(function () {
+        showToast('Could not load that deck.');
+      });
+  }
+
   function renderSkeletons(count) {
     if (!suggestionsEl) return;
     suggestionsEl.replaceChildren();
@@ -414,6 +474,7 @@
     if (explore.busy) return;
     explore.slug = slug;
     markActivePill();
+    renderShelf(slug);
 
     if (slug === 'picked') { showPicked(); return; }
 
@@ -1385,6 +1446,15 @@
       payoff.appendChild(el('p', 'answer-bedrock-text', bed.principle));
       block.appendChild(payoff);
     }
+
+    /* Provenance is the honest-labeling rule extended to content: the
+       validator only ever checked form, so say out loud whether a human has
+       read this deck. */
+    var isReviewed = deck.meta && deck.meta.reviewed;
+    block.appendChild(el('p',
+      'deck-provenance ' + (isReviewed ? 'is-reviewed' : 'is-live'),
+      isReviewed ? 'Reviewed deck.'
+                 : 'Generated live — structure checked, content unreviewed.'));
 
     var actions = el('div', 'answer-actions');
     var open = el('button', 'open-deck');
