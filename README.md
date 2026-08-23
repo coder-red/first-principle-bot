@@ -11,7 +11,6 @@
 ![OpenAI SDK](https://img.shields.io/badge/OpenAI%20SDK-412991?style=flat&logo=openai&logoColor=white)
 ![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue)
 
 Ask it anything. It decomposes the question to what is irreducibly true, then rebuilds the answer from there — first-principles reasoning run as an explicit, machine-checked protocol rather than a personality prompt. Analogies are banned, every claim carries an epistemic tag, and the model has to show the chain that got it there.
 
@@ -122,7 +121,6 @@ Every card in the deck carries how well its claim is known:
 - **No markup injection:** the UI never uses `innerHTML`.
 - **Health endpoint:** `/api/health` reports the configured chain (no keys), entries currently cooling, access-control and persistence modes, and process-local counters — decks verified vs unverified, repair-pass fires and outcomes, per-provider errors and cooldowns, rate-limit refusals.
 - **Logging:** structured via `fpb/telemetry.py`; `DEBUG_ERRORS=1` forwards raw provider errors to the browser (never on a public deploy).
-- **Threat model & disclosure:** [SECURITY.md](SECURITY.md).
 
 ## Quick Start
 
@@ -253,16 +251,7 @@ Drill-downs ("Go deeper"), "Ask about this card" and follow-ups all post to the 
 ├── tools/build_library.py  # Generate library decks; refuses the unsound
 ├── tests/                  # pytest suites, one per concern
 │   └── browser/            # Playwright end-to-end suites
-├── CONTRIBUTING.md · SECURITY.md · CODE_OF_CONDUCT.md · CHANGELOG.md
-└── LICENSE                 # MIT
+└── CHANGELOG.md
 ```
 
 </details>
-
-## Contributing
-
-Bug reports and pull requests are welcome; no API key is needed for most work. See [CONTRIBUTING.md](CONTRIBUTING.md). Report vulnerabilities privately per [SECURITY.md](SECURITY.md).
-
-## License
-
-MIT — see [LICENSE](LICENSE).

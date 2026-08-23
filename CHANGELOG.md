@@ -63,6 +63,13 @@ it shipped rather than by version.
   anonymous instance that spent the configured provider keys for anyone who
   found the URL. Now present as `sync: false`, with the exposure spelled out.
 
+### Removed
+
+- The open-source scaffolding: `CONTRIBUTING.md`, `SECURITY.md`,
+  `CODE_OF_CONDUCT.md` and the MIT `LICENSE`, along with the README sections
+  that linked to them. The project is single-author again; the changelog
+  stays as the record of what shipped.
+
 ### Added (earlier in this cycle)
 
 - Optional shared-token access control. Set `APP_ACCESS_TOKEN` and `/api/chat`,
