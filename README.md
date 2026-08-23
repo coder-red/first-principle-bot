@@ -1,9 +1,3 @@
-<!-- Banner: drop an image at assets/banner.png and uncomment.
-<p align="center">
-  <img src="assets/banner.png" alt="Project Banner" width="100%">
-</p>
--->
-
 # First Principle Bot
 
 ![Python version](https://img.shields.io/badge/Python%20version-3.10%2B-lightgrey)
@@ -12,12 +6,11 @@
 ![Playwright](https://img.shields.io/badge/Playwright-2EAD33?style=flat&logo=playwright&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white)
 
-Ask it anything. It decomposes the question to what is irreducibly true, then rebuilds the answer from there — first-principles reasoning run as an explicit, machine-checked protocol rather than a personality prompt. Analogies are banned, every claim carries an epistemic tag, and the model has to show the chain that got it there.
+You ask a question. The bot breaks it down step by step until it reaches something solidly true, then rebuilds the answer from there. It runs as an explicit protocol, not a personality prompt: analogies are banned, every claim carries a tag saying how well it is known, and the model has to show the chain that got it to the answer. A validator checks every deck against the rules before you see any of it.
 
 ## Live Demo
 
-<!-- Fill in once deployed. render.yaml targets https://first-principle-bot.onrender.com -->
-- App: _not yet public — see [Deployment](#deployment)_
+- App: _not public yet — see [Deployment](#deployment)_
 
 ## Author
 
@@ -33,70 +26,70 @@ Ask it anything. It decomposes the question to what is irreducibly true, then re
 - [Configuration](#configuration)
 - [API Reference](#api-reference)
 - [Testing](#testing)
-- [Limitations & Trade-offs](#limitations--trade-offs)
+- [Limitations & What Can Be Improved](#limitations--what-can-be-improved)
 - [Repository Structure](#repository-structure)
 
 ---
 
 ## Architecture
 
-One model call returns a **deck**: a single decomposition chain rendered as cards. The model descends level by level until it hits bedrock, then climbs back up rebuilding the explanation from that bedrock alone. The server validates the chain against a formal contract before it renders, streams cards as they close, and works down a chain of free-tier LLM providers so one exhausted allowance does not take the app down.
+One call to the model returns a **deck**: cards that walk down the question one level at a time until they reach bedrock, then climb back up and rebuild the explanation from that bedrock alone. Before anything renders, the server checks the chain against a fixed contract. Cards stream in as each one closes, so you read while it works. If the first provider is out of credits, the app moves down a chain of free-tier providers instead of dying.
 
 ```
 question → prompt → provider chain → JSON deck → normalize → validate ──┬─ pass → render (structure checked)
                                                                         └─ fail → repair call → render, or flag as unverified
 ```
 
-Every card in the deck carries how well its claim is known:
+Every claim carries a tag:
 
 | Tag | Glyph | Meaning |
 |---|---|---|
 | `ATOMIC` | ◆ | Irreducible — physical law, logical axiom, definitional truth |
-| `VERIFIED` | ✓ | Empirically confirmed, but could in principle be otherwise |
+| `VERIFIED` | ✓ | Confirmed, but could in principle be otherwise |
 | `CONVENTION` | ≈ | Widely accepted, not proven — discarded during rebuild |
 | `ASSUMPTION` | ○ | Taken for granted — discarded during rebuild |
-| `UNKNOWN` | ? | Not known; reasoning stops rather than fabricating |
+| `UNKNOWN` | ? | Not known. Reasoning stops here rather than inventing something |
 
 ### Design Decisions
 
-| Decision | Rationale |
+| Decision | Why |
 |---|---|
-| **One call, one JSON deck** | Cards, the prose "Full reasoning" view, the self-test quiz and the follow-up questions are all derived from the same JSON. No second prompt, no Markdown, no extra cost. |
-| **Chain validation is a hard contract** | A decomposition that breaks its own rules signals rigour it does not have. Exactly one bedrock below the deepest step, levels strictly increasing, no descent card tagged `ATOMIC`, rebuild steps standing only on `ATOMIC`/`VERIFIED` material. Violations trigger one repair call quoting the exact rule broken; a second failure renders with a **Structure not verified** banner rather than passing as sound. |
-| **Structure checked ≠ verified** | Validation checks form, not truth. The badge wording is deliberate: it says the deck follows its own rules, not that the claims are correct. |
-| **Ordered provider chain, no rotation** | Free tiers are capped per account per day, not per visitor. Rotating spends the scarce allowance (Gemini: 20 req/day) to relieve the renewable one (Groq: 8k tokens/min). The chain is tried in the order written; put the renewable entry first. |
-| **429/413/402 → cooldown, malformed deck → no cooldown** | A quota error is a capacity problem and the entry is skipped until the cooldown expires. A bad deck is a bad roll from a working provider and is retried down the chain. |
-| **Streaming by card boundary** | A deck takes 25–35s and a spinner that long reads as a hang. Cards are emitted as each JSON object closes; the authoritative deck is sent last because a chain cannot be validated until it is finished. |
-| **`response_format: json_object` is the only hard model requirement** | Routers like `openrouter/auto` are rejected — one run of `openrouter/free` was routed to a content-safety classifier that returned 17 characters. `/api/health` flags routers. |
-| **Shared token instead of user accounts** | The exposure on a public URL is "can a stranger spend my credits", not identity. `APP_ACCESS_TOKEN` is exchanged once for an `HttpOnly` cookie; the token is never held in JavaScript. |
-| **A curated library instead of live-only generation** | Decks in `library/decks/` were generated once with a strong model, passed `validate_chain`, and were read by a human before being committed — the repo is the CMS. They serve instantly, cost nothing per request, and carry a `Reviewed deck.` badge; live decks are labeled `Generated live — structure checked, content unreviewed.` `tools/build_library.py` refuses to write a deck that fails validation and never overwrites an existing slug. |
-| **Spaced review, no accounts** | Quiz answers feed a localStorage review ladder (`1/3/7/16/35` days; a miss falls to the bottom). Returning with claims due shows a review banner. Progress is per-browser by design — no signup, nothing leaves the machine. |
-| **SQLite via stdlib for state** | Cooldowns, rate limits and explore pools live in memory by default. `STATE_DB` persists them so a restart on a sleeping host does not cost a round of doomed provider calls. No server, a few kilobytes. |
-| **No build step, no `innerHTML`** | Vanilla JS builds the UI with `textContent`, so model output has no markup-injection surface. Edit and reload. |
+| **One call, one JSON deck** | The cards, the prose view, the quiz and the follow-up questions all come from the same JSON. No second prompt, no extra cost. |
+| **Chain validation is a hard contract** | A deck that breaks its own rules looks rigorous when it is not. So: exactly one bedrock below the deepest step, levels strictly increasing, no `ATOMIC` inside the descent, and rebuild steps standing on `ATOMIC`/`VERIFIED` only. Break a rule and the model gets one repair call quoting the exact rule. Fail again and the deck renders under a **Structure not verified** banner instead of passing as sound. |
+| **Checked form is not checked truth** | The badge says the deck follows its own rules. It does not say the claims are correct. |
+| **Ordered provider chain, no rotation** | Free tiers cap per account per day, not per visitor. Rotating spends Gemini's 20 requests a day to relieve Groq's tokens-per-minute, which refills every minute anyway. So the chain runs in the order written, and you put the renewable entry first. |
+| **Out of quota cools a provider, a bad deck does not** | 429/413/402 is a capacity problem, so the entry is skipped until the cooldown expires. Malformed JSON is a bad roll from a working provider, so it retries down the chain. |
+| **Streaming by card boundary** | A deck takes 25–35 seconds and a spinner that long reads as dead. Cards arrive as each JSON object closes. The full validated deck comes last and replaces any early cards. |
+| **`json_object` mode or nothing** | Routers like `openrouter/free` once sent my question to a content safety classifier, which answered in 17 characters. Routers are rejected and flagged in `/api/health`. |
+| **A shared token, not user accounts** | On a public URL the risk is a stranger spending your credits. `APP_ACCESS_TOKEN` is exchanged once for an `HttpOnly` cookie, so JavaScript never holds the token. |
+| **A curated library, not just live calls** | Decks in `library/decks/` were generated once with a strong model, passed validation, and I read them before committing. They serve instantly and cost nothing per request, marked `Reviewed deck.` Live decks say `Generated live — structure checked, content unreviewed.` `tools/build_library.py` refuses to write a deck that fails validation. |
+| **Spaced review, no accounts** | Quiz answers feed a review schedule in your browser (`1/3/7/16/35` days; miss a claim and it drops to the bottom). Progress stays per-browser on purpose. Nothing leaves your machine. |
+| **SQLite for state** | Cooldowns, rate limits and pools live in memory by default. Set `STATE_DB` and they survive a restart, which matters on hosts that sleep. Stdlib sqlite3, a few kilobytes, no server. |
+| **No build step, no `innerHTML`** | Vanilla JS builds the UI with `textContent`, so model output has no way to inject markup. Edit and reload. |
 
 ### Request Lifecycle
 
-1. `POST /api/chat/stream` receives `{ message, context?, focus? }` — a fresh question, a drill-down on a card, or a question about a card
+1. `POST /api/chat/stream` receives `{ message, context?, focus? }` — a fresh question, a drill-down into a card, or a question about a card
 2. `require_access()` checks header / bearer / cookie when `APP_ACCESS_TOKEN` is set
 3. Per-IP sliding-window rate limiter (`fpb/limits.py`) admits or refuses
-4. Prompt assembled (`fpb/prompts.py`, `fpb/schemas.py`); drill-downs inject the focus claim as the new starting point
+4. Prompt assembled (`fpb/prompts.py`, `fpb/schemas.py`); drill-downs start from the claim you focused
 5. Provider chain walked in order, skipping entries on cooldown (`fpb/providers.py`)
 6. Streaming JSON reader emits each card as its object closes (`fpb/deck.py: complete_cards`)
-7. `normalize_deck()` guarantees shape; `validate_chain()` checks the contract
-8. On violation → one repair call quoting the broken rule; on second failure → deck flagged unverified
-9. Authoritative deck sent last; client replaces any early cards
-10. Client renders cards / prose / quiz / follow-ups from the same JSON; thread persisted to `localStorage`
+7. `normalize_deck()` fixes shape; `validate_chain()` applies the contract
+8. Rule broken → one repair call quoting it; broken twice → flagged unverified
+9. The authoritative deck goes last; the client replaces any early cards
+10. The client renders cards / prose / quiz / follow-ups from the same JSON and saves the thread to `localStorage`
 
 ## Tech Stack
 
 | Layer | Technology |
 |---|---|
 | **Language** | Python 3.10+ (tested on 3.10 and 3.13) |
-| **API Framework** | FastAPI + Uvicorn (async, SSE-style streaming) |
+| **API Framework** | FastAPI + Uvicorn (async, streaming) |
 | **LLM Client** | OpenAI SDK against any OpenAI-compatible endpoint |
-| **Providers** | Groq, Gemini, Cerebras, NVIDIA, Mistral, Together, OpenRouter, OpenAI — built-in base URLs; anything else via `<NAME>_ENDPOINT` |
+| **Providers** | Groq, Gemini, Cerebras, NVIDIA, Mistral, Together, OpenRouter, OpenAI — base URLs built in; anything else via `<NAME>_ENDPOINT` |
 | **Persistence** | stdlib `sqlite3` (optional, `STATE_DB`) |
-| **Frontend** | Vanilla JS + CSS design tokens, light/dark themes — no framework, no bundler |
+| **Frontend** | Vanilla JS + CSS, light/dark themes — no framework, no bundler |
 | **Testing** | pytest (unit/integration) + Playwright (eight browser suites against the real UI) |
 | **CI** | GitHub Actions — pytest matrix + headless Chromium suites on every push |
 | **Portable form** | The method packaged as a Claude skill (`skill/first-principles/`) with a self-contained HTML deck renderer |
@@ -105,22 +98,22 @@ Every card in the deck carries how well its claim is known:
 
 | Target | Platform | Config | Notes |
 |---|---|---|---|
-| **Recommended** | Oracle Cloud Always Free (Ampere A1) | [`deploy/oci/`](deploy/oci/README.md) — systemd unit, nginx, update script | Never sleeps, real disk, so `STATE_DB` is worth setting |
-| Alternative | Render (Docker-less blueprint) | [`render.yaml`](render.yaml) | Simplest to stand up; free plan sleeps and filesystem is ephemeral, so cooldowns and limits reset on wake |
+| **Recommended** | Oracle Cloud Always Free (Ampere A1) | [`deploy/oci/`](deploy/oci/) — systemd unit, nginx, update script | Never sleeps, real disk, so `STATE_DB` is worth setting |
+| Alternative | Render (Docker-less blueprint) | [`render.yaml`](render.yaml) | Easiest to stand up; free plan sleeps and the filesystem is ephemeral, so cooldowns and limits reset on wake |
 
-**Whatever you deploy to:** set `APP_ACCESS_TOKEN`, `HOST=0.0.0.0`, `RELOAD=0`, and `PUBLIC_URL=https://…` (the access cookie is only marked `Secure` when it is). Run a single instance — limits and pools are process-local. Behind a reverse proxy, make it **overwrite** `X-Forwarded-For` with the real peer rather than append; per-IP limits key on its first entry.
+**Whatever you deploy to:** set `APP_ACCESS_TOKEN`, `HOST=0.0.0.0`, `RELOAD=0`, and `PUBLIC_URL=https://…` (the access cookie is only marked `Secure` when it is). Run a single instance — limits and pools live in process memory. Behind a reverse proxy, make it **overwrite** `X-Forwarded-For` with the real peer instead of appending. The per-IP limits read its first entry.
 
-`tools/check_providers.py` probes the configured chain before you ship it.
+`tools/check_providers.py` probes your configured chain before you ship it.
 
 ## Security & Observability
 
 - **Provider keys stay server-side.** Never sent to the browser.
-- **Access control:** `APP_ACCESS_TOKEN` gates `/api/chat`, `/api/chat/stream` and `/api/explore/<sector>`. `/api/health` deliberately stays open so platform health checks do not 401 the service down. `/api/access` has its own, tighter rate limit so it cannot be used as a guessing oracle.
-- **Rate limiting:** three independent per-IP sliding windows (decks, explore top-ups, token guesses). A limiter bounds *how fast* a stranger spends your money; the token is the actual control.
+- **Access control:** `APP_ACCESS_TOKEN` gates `/api/chat`, `/api/chat/stream` and `/api/explore/<sector>`. `/api/health` stays open so platform health checks don't take the service down. `/api/access` has its own tighter rate limit so it can't be used as a guessing oracle.
+- **Rate limiting:** three independent per-IP sliding windows (decks, explore top-ups, token guesses). A limiter bounds how fast a stranger spends your money; the token is the actual control.
 - **Constant-time token compare** (`hmac.compare_digest`).
-- **No markup injection:** the UI never uses `innerHTML`.
-- **Health endpoint:** `/api/health` reports the configured chain (no keys), entries currently cooling, access-control and persistence modes, and process-local counters — decks verified vs unverified, repair-pass fires and outcomes, per-provider errors and cooldowns, rate-limit refusals.
-- **Logging:** structured via `fpb/telemetry.py`; `DEBUG_ERRORS=1` forwards raw provider errors to the browser (never on a public deploy).
+- **No markup injection:** the UI never touches `innerHTML`.
+- **Health endpoint:** `/api/health` reports the configured chain (no keys), entries cooling down, access-control and persistence modes, and counters — decks verified vs unverified, repair-pass outcomes, per-provider errors and cooldowns, rate-limit refusals.
+- **Logging:** structured via `fpb/telemetry.py`; `DEBUG_ERRORS=1` forwards raw provider errors to the browser. Never on a public deploy.
 
 ## Quick Start
 
@@ -154,7 +147,7 @@ python tests/browser/run_all.py    # another
 
 ## Configuration
 
-All optional except a provider key. `.env.example` carries the reasoning behind each default.
+All optional except a provider key. `.env.example` explains the reasoning behind each default.
 
 ```bash
 PROVIDERS=groq,gemini,openrouter
@@ -202,18 +195,18 @@ Drill-downs ("Go deeper"), "Ask about this card" and follow-ups all post to the 
 
 ## Testing
 
-- **Python suite** (`tests/`): JSON extraction from messy model output, deck normalization, chain validation and the repair pass, request validation, drill-down focus injection, question reframing, model-failure hints, the provider chain and cooldowns, rate limiting, streaming, access control, persistence, and the deck library (loading, the publish gate, the open endpoints). Never makes a model call.
-- **Browser suites** (`tests/browser/`): eight Playwright suites driving the real UI. They exist because several bugs were invisible to the Python tests — a deck that locked up under frame throttling, chip colours leaking onto the depth rail, regenerate corrupting the stored thread only when combined with persistence. Endpoints that would spend credits are stubbed; no API key needed. See [tests/browser/README.md](tests/browser/README.md).
+- **Python suite** (`tests/`): JSON extraction from messy model output, deck normalization, chain validation and the repair pass, request validation, drill-down focus injection, question reframing, model-failure hints, the provider chain and cooldowns, rate limiting, streaming, access control, persistence, and the deck library (loading, the publish gate, the open endpoints). Never makes a model call, so it runs free.
+- **Browser suites** (`tests/browser/`): eight Playwright suites driving the real UI. Several bugs were invisible to the Python tests — a deck that locked up under frame throttling, chip colours leaking onto the depth rail, regenerate corrupting the stored thread only when combined with persistence. Endpoints that would spend credits are stubbed, so no API key is needed. See [tests/browser/README.md](tests/browser/README.md).
 - **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs both on every push (pytest on 3.10 and 3.13, Chromium suites on 3.13).
 
-## Limitations & Trade-offs
+## Limitations & What Can Be Improved
 
-- **Form is checked, truth is not.** A deck can obey every structural rule and still stop at a "bedrock" that is not irreducible. The tags are the model's judgement; disagreeing with one is often the most interesting thing in the deck.
-- **Single-instance by design.** Cooldowns, rate limits and pools are process-local (or one SQLite file). Horizontal scaling would need shared state.
-- **Shared secret, not accounts.** `APP_ACCESS_TOKEN` answers "may this person spend my credits", nothing finer. No per-user quotas or RBAC.
-- **Free-tier providers are the bottleneck.** Latency is 25–35s per deck and daily caps are per account. The chain mitigates; it does not remove the ceiling.
-- **`X-Forwarded-For` is client-controlled.** Per-IP limits are only as trustworthy as the proxy in front. Without one that overwrites the header, every request can land in a fresh bucket.
-- **Early cards may be replaced.** Streaming shows the descent before the rebuild is written; the final validated deck wins.
+- **Form is checked, truth is not.** A deck can obey every structural rule and still stop at a "bedrock" that isn't really irreducible. The tags are the model's judgement, and disagreeing with one is often the most interesting part of a deck.
+- **Single instance by design.** Cooldowns, rate limits and pools live in process memory (or one SQLite file). Scaling out needs shared state first.
+- **Shared secret, not accounts.** `APP_ACCESS_TOKEN` answers "may this person spend my credits" and nothing finer. No per-user quotas.
+- **Free tiers are the bottleneck.** 25–35 seconds per deck, and daily caps are per account. The chain softens this; it doesn't remove the ceiling.
+- **`X-Forwarded-For` is client-controlled.** Per-IP limits are only as trustworthy as the proxy in front. Without one that overwrites the header, a caller varying the header lands in a fresh bucket every request.
+- **Early cards may be replaced.** Streaming shows the descent before the rebuild is written. The final validated deck wins.
 
 ## Repository Structure
 
