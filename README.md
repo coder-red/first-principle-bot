@@ -70,6 +70,8 @@ Every card in the deck carries how well its claim is known:
 | **Streaming by card boundary** | A deck takes 25–35s and a spinner that long reads as a hang. Cards are emitted as each JSON object closes; the authoritative deck is sent last because a chain cannot be validated until it is finished. |
 | **`response_format: json_object` is the only hard model requirement** | Routers like `openrouter/auto` are rejected — one run of `openrouter/free` was routed to a content-safety classifier that returned 17 characters. `/api/health` flags routers. |
 | **Shared token instead of user accounts** | The exposure on a public URL is "can a stranger spend my credits", not identity. `APP_ACCESS_TOKEN` is exchanged once for an `HttpOnly` cookie; the token is never held in JavaScript. |
+| **A curated library instead of live-only generation** | Decks in `library/decks/` were generated once with a strong model, passed `validate_chain`, and were read by a human before being committed — the repo is the CMS. They serve instantly, cost nothing per request, and carry a `Reviewed deck.` badge; live decks are labeled `Generated live — structure checked, content unreviewed.` `tools/build_library.py` refuses to write a deck that fails validation and never overwrites an existing slug. |
+| **Spaced review, no accounts** | Quiz answers feed a localStorage review ladder (`1/3/7/16/35` days; a miss falls to the bottom). Returning with claims due shows a review banner. Progress is per-browser by design — no signup, nothing leaves the machine. |
 | **SQLite via stdlib for state** | Cooldowns, rate limits and explore pools live in memory by default. `STATE_DB` persists them so a restart on a sleeping host does not cost a round of doomed provider calls. No server, a few kilobytes. |
 | **No build step, no `innerHTML`** | Vanilla JS builds the UI with `textContent`, so model output has no markup-injection surface. Edit and reload. |
 
@@ -96,7 +98,7 @@ Every card in the deck carries how well its claim is known:
 | **Providers** | Groq, Gemini, Cerebras, NVIDIA, Mistral, Together, OpenRouter, OpenAI — built-in base URLs; anything else via `<NAME>_ENDPOINT` |
 | **Persistence** | stdlib `sqlite3` (optional, `STATE_DB`) |
 | **Frontend** | Vanilla JS + CSS design tokens, light/dark themes — no framework, no bundler |
-| **Testing** | pytest (unit/integration) + Playwright (seven browser suites against the real UI) |
+| **Testing** | pytest (unit/integration) + Playwright (eight browser suites against the real UI) |
 | **CI** | GitHub Actions — pytest matrix + headless Chromium suites on every push |
 | **Portable form** | The method packaged as a Claude skill (`skill/first-principles/`) with a self-contained HTML deck renderer |
 
@@ -195,13 +197,15 @@ GEMINI_MODELS=gemini-3.6-flash,gemini-3.5-flash   # plural: caps are per model
 | `/api/explore/sectors` | GET | List the explore sectors |
 | `/api/explore/{slug}` | GET | Top up a sector's question pool |
 | `/api/sample-deck` | GET | A static deck for the UI without a model call |
+| `/api/library` | GET | Index of reviewed library decks — always open |
+| `/api/library/{slug}` | GET | One reviewed deck, served from disk — always open |
 
 Drill-downs ("Go deeper"), "Ask about this card" and follow-ups all post to the same chat endpoint with different `context`/`focus`.
 
 ## Testing
 
-- **Python suite** (`tests/`): JSON extraction from messy model output, deck normalization, chain validation and the repair pass, request validation, drill-down focus injection, question reframing, model-failure hints, the provider chain and cooldowns, rate limiting, streaming, access control, persistence. Never makes a model call.
-- **Browser suites** (`tests/browser/`): seven Playwright suites driving the real UI. They exist because several bugs were invisible to the Python tests — a deck that locked up under frame throttling, chip colours leaking onto the depth rail, regenerate corrupting the stored thread only when combined with persistence. Endpoints that would spend credits are stubbed; no API key needed. See [tests/browser/README.md](tests/browser/README.md).
+- **Python suite** (`tests/`): JSON extraction from messy model output, deck normalization, chain validation and the repair pass, request validation, drill-down focus injection, question reframing, model-failure hints, the provider chain and cooldowns, rate limiting, streaming, access control, persistence, and the deck library (loading, the publish gate, the open endpoints). Never makes a model call.
+- **Browser suites** (`tests/browser/`): eight Playwright suites driving the real UI. They exist because several bugs were invisible to the Python tests — a deck that locked up under frame throttling, chip colours leaking onto the depth rail, regenerate corrupting the stored thread only when combined with persistence. Endpoints that would spend credits are stubbed; no API key needed. See [tests/browser/README.md](tests/browser/README.md).
 - **CI:** [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs both on every push (pytest on 3.10 and 3.13, Chromium suites on 3.13).
 
 ## Limitations & Trade-offs
@@ -232,6 +236,7 @@ Drill-downs ("Go deeper"), "Ask about this card" and follow-ups all post to the 
 │   ├── schemas.py          # Request bodies and message building
 │   ├── explore.py          # Sectors and the question pool
 │   ├── limits.py           # Per-IP rate limiting
+│   ├── library.py          # Reviewed deck library: load, index, publish gate
 │   ├── auth.py             # Optional shared-token access control
 │   ├── store.py            # Optional SQLite persistence
 │   └── telemetry.py        # Logging and counters
@@ -240,8 +245,12 @@ Drill-downs ("Go deeper"), "Ask about this card" and follow-ups all post to the 
 │   ├── script.js           # Transcript, deck modal, prose view, quiz, access gate
 │   └── style.css           # Design tokens, light/dark themes
 ├── deploy/oci/             # OCI runbook, systemd unit, nginx config, update script
+├── library/
+│   ├── topics.txt          # sector: question — the library's build list
+│   └── decks/              # Reviewed decks, one JSON each; committing = publishing
 ├── skill/first-principles/ # The method as a portable Claude skill + HTML renderer
 ├── tools/check_providers.py# Probe the configured chain
+├── tools/build_library.py  # Generate library decks; refuses the unsound
 ├── tests/                  # pytest suites, one per concern
 │   └── browser/            # Playwright end-to-end suites
 ├── CONTRIBUTING.md · SECURITY.md · CODE_OF_CONDUCT.md · CHANGELOG.md

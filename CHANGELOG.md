@@ -10,6 +10,24 @@ it shipped rather than by version.
 
 ### Added
 
+- A curated deck library. `library/decks/` holds decks generated once with a
+  strong model, validated against the chain contract, and read by a human
+  before being committed — the repo is the CMS. Two new open endpoints
+  (`/api/library`, `/api/library/{slug}`) serve them instantly from memory,
+  and the explore panel shows each sector's reviewed decks above the
+  generated question suggestions. `tools/build_library.py` builds the
+  library from `library/topics.txt`, refuses to write any deck that fails
+  validation, and never overwrites a slug a human already reviewed.
+- Provenance on every deck: library decks say `Reviewed deck.`, live ones say
+  `Generated live — structure checked, content unreviewed.` The validator
+  only ever checked form, so whether a human has read the content is now
+  stated out loud instead of implied.
+- Spaced review. Quiz answers feed a localStorage ladder (1/3/7/16/35 days;
+  a miss falls back to the bottom rung), and returning with claims due shows
+  a "N claims due for review" banner that runs a review round across past
+  decks. No accounts and nothing leaves the browser — progress is per-machine
+  by design.
+
 - Oracle Cloud Always Free deploy set in `deploy/oci/`: a hardened systemd unit,
   an nginx reverse-proxy config, a systemd-format env template, a redeploy
   script that rolls back on a failed health check, and a runbook. An Ampere A1
