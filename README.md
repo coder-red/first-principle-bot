@@ -9,8 +9,8 @@ A study tool that reasons from first principles. Ask a question and it breaks do
 
 ## Live Demo
 
-- App: [first-principle-bot.onrender.com](https://first-principle-bot.onrender.com)
-- Browsing the reviewed library is open. Asking new questions needs an access token — free-tier credits, so it stays gated.
+- App: [first-principle-bot.onrender.com](https://first-principle-bot.onrender.com) — open to use
+- Free-tier providers only, so a busy day can hit the daily caps until they reset.
 
 ## Author
 
