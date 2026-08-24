@@ -57,14 +57,14 @@ Every claim carries a tag:
 | **One call, one JSON deck** | The cards, the prose view, the quiz and the follow-up questions all come from the same JSON. No second prompt, no extra cost. |
 | **Chain validation is a hard contract** | A deck that breaks its own rules looks rigorous when it is not. So: exactly one bedrock below the deepest step, levels strictly increasing, no `ATOMIC` inside the descent, and rebuild steps standing on `ATOMIC`/`VERIFIED` only. Break a rule and the model gets one repair call quoting the exact rule. Fail again and the deck renders under a **Structure not verified** banner instead of passing as sound. |
 | **Checked form is not checked truth** | The badge says the deck follows its own rules. It does not say the claims are correct. |
-| **Ordered provider chain, no rotation** | Free tiers cap per account per day, not per visitor. Rotating spends Gemini's 20 requests a day to relieve Groq's tokens-per-minute, which refills every minute anyway. So the chain runs in the order written, and you put the renewable entry first. |
+| **Ordered provider chain, no rotation** | Free tiers cap per account per day, not per visitor. Rotating spends Gemini's 20 requests a day to relieve Groq's tokens-per-minute, which refills every minute anyway. So the chain runs in the order written, renewable entry first. |
 | **Out of quota cools a provider, a bad deck does not** | 429/413/402 is a capacity problem, so the entry is skipped until the cooldown expires. Malformed JSON is a bad roll from a working provider, so it retries down the chain. |
 | **Streaming by card boundary** | A deck takes 25–35 seconds and a spinner that long reads as dead. Cards arrive as each JSON object closes. The full validated deck comes last and replaces any early cards. |
 | **`json_object` mode or nothing** | Routers like `openrouter/free` once sent my question to a content safety classifier, which answered in 17 characters. Routers are rejected and flagged in `/api/health`. |
 | **A shared token, not user accounts** | On a public URL the risk is a stranger spending your credits. `APP_ACCESS_TOKEN` is exchanged once for an `HttpOnly` cookie, so JavaScript never holds the token. |
 | **A curated library, not just live calls** | Decks in `library/decks/` were generated once with a strong model, passed validation, and I read them before committing. They serve instantly and cost nothing per request, marked `Reviewed deck.` Live decks say `Generated live — structure checked, content unreviewed.` `tools/build_library.py` refuses to write a deck that fails validation. |
 | **Spaced review, no accounts** | Quiz answers feed a review schedule in your browser (`1/3/7/16/35` days; miss a claim and it drops to the bottom). Progress stays per-browser on purpose. Nothing leaves your machine. |
-| **SQLite for state** | Cooldowns, rate limits and pools live in memory by default. Set `STATE_DB` and they survive a restart, which matters on hosts that sleep. Stdlib sqlite3, a few kilobytes, no server. |
+| **SQLite for state** | Cooldowns, rate limits and pools live in memory by default. `STATE_DB` persists them across restarts, which matters on hosts that sleep. Stdlib sqlite3, a few kilobytes, no server. |
 | **No build step, no `innerHTML`** | Vanilla JS builds the UI with `textContent`, so model output has no way to inject markup. Edit and reload. |
 
 ### Request Lifecycle
@@ -72,7 +72,7 @@ Every claim carries a tag:
 1. `POST /api/chat/stream` receives `{ message, context?, focus? }` — a fresh question, a drill-down into a card, or a question about a card
 2. `require_access()` checks header / bearer / cookie when `APP_ACCESS_TOKEN` is set
 3. Per-IP sliding-window rate limiter (`fpb/limits.py`) admits or refuses
-4. Prompt assembled (`fpb/prompts.py`, `fpb/schemas.py`); drill-downs start from the claim you focused
+4. Prompt assembled (`fpb/prompts.py`, `fpb/schemas.py`); drill-downs start from the focused claim
 5. Provider chain walked in order, skipping entries on cooldown (`fpb/providers.py`)
 6. Streaming JSON reader emits each card as its object closes (`fpb/deck.py: complete_cards`)
 7. `normalize_deck()` fixes shape; `validate_chain()` applies the contract
@@ -98,12 +98,12 @@ Every claim carries a tag:
 
 | Target | Platform | Config | Notes |
 |---|---|---|---|
-| **Recommended** | Oracle Cloud Always Free (Ampere A1) | [`deploy/oci/`](deploy/oci/) — systemd unit, nginx, update script | Never sleeps, real disk, so `STATE_DB` is worth setting |
-| Alternative | Render (Docker-less blueprint) | [`render.yaml`](render.yaml) | Easiest to stand up; free plan sleeps and the filesystem is ephemeral, so cooldowns and limits reset on wake |
+| **Recommended** | Oracle Cloud Always Free (Ampere A1) | [`deploy/oci/`](deploy/oci/) — systemd unit, nginx, update script | Never sleeps, real disk, so `STATE_DB` persists cooldowns across restarts |
+| Alternative | Render (Docker-less blueprint) | [`render.yaml`](render.yaml) | Minimal setup; free plan sleeps and the filesystem is ephemeral, so cooldowns and limits reset on wake |
 
-**Whatever you deploy to:** set `APP_ACCESS_TOKEN`, `HOST=0.0.0.0`, `RELOAD=0`, and `PUBLIC_URL=https://…` (the access cookie is only marked `Secure` when it is). Run a single instance — limits and pools live in process memory. Behind a reverse proxy, make it **overwrite** `X-Forwarded-For` with the real peer instead of appending. The per-IP limits read its first entry.
+Production settings are `APP_ACCESS_TOKEN`, `HOST=0.0.0.0`, `RELOAD=0`, and `PUBLIC_URL=https://…` (the access cookie is only marked `Secure` on https). One instance only — limits and pools live in process memory. The bundled nginx config overwrites `X-Forwarded-For` with the real peer instead of appending, and that first entry is what the per-IP limits key on.
 
-`tools/check_providers.py` probes your configured chain before you ship it.
+`tools/check_providers.py` probes the configured chain before a deploy.
 
 ## Security & Observability
 
