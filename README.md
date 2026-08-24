@@ -5,7 +5,7 @@
 ![OpenAI SDK](https://img.shields.io/badge/OpenAI%20SDK-412991?style=flat&logo=openai&logoColor=white)
 ![SQLite](https://img.shields.io/badge/SQLite-003B57?style=flat&logo=sqlite&logoColor=white)
 
-A chatbot that reasons from first principles. Ask a question and it breaks the question down level by level until it reaches basic truths, then rebuilds the answer from those alone. Every claim carries a tag saying how well it is known, and a validator checks the whole chain against fixed rules before anything renders.
+A study tool that reasons from first principles. Ask a question and it breaks down level by level until it reaches basic truths, then rebuilds the answer from those alone. Every claim carries a tag saying how well it is known, a validator checks the whole chain against fixed rules before anything renders, and the deck turns into a spaced-review quiz so the chain sticks.
 
 ## Live Demo
 
