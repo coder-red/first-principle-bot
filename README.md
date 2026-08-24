@@ -43,7 +43,7 @@ Conventions and assumptions get thrown out during the rebuild, so the final answ
 
 ## Run It Locally
 
-Python 3.10+ and one provider API key (a free Groq key is enough).
+Python 3.10+ and one provider API key.
 
 ```bash
 git clone https://github.com/coder-red/first-principle-bot.git
@@ -53,7 +53,7 @@ cp .env.example .env   # add your key
 python main.py
 ```
 
- Groq, Gemini, Cerebras, NVIDIA, Mistral, Together, OpenRouter and OpenAI work out of the box; `.env.example` documents every other option.
+Groq, Gemini, Cerebras, NVIDIA, Mistral, Together and OpenAI have their endpoints built in when you want to chain more through `PROVIDERS`; `.env.example` starts you on OpenRouter (free models, one key).
 
 ## Tech Stack
 
