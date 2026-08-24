@@ -9,7 +9,8 @@ A chatbot that reasons from first principles. Ask a question and it breaks the q
 
 ## Live Demo
 
-- App: _not public yet, run it locally below_
+- App: [first-principle-bot.onrender.com](https://first-principle-bot.onrender.com)
+- Browsing the reviewed library is open. Asking new questions needs an access token — free-tier credits, so it stays gated.
 
 ## Author
 
