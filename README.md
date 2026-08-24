@@ -14,7 +14,8 @@ A chatbot that reasons from first principles. Ask a question and it breaks the q
 
 ## Author
 
-- [@coder-red](https://www.github.com/coder-red)
+- GitHub: [@coder-red](https://github.com/coder-red)
+- Portfolio: [mhmdxc.vercel.app](https://mhmdxc.vercel.app)
 
 ## How It Works
 
