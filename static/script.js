@@ -774,10 +774,32 @@
     // Bedrock first — it is the deck's point — then spread across the rest.
     var bedrock = usable.filter(function (c) { return c.phase === 'bedrock'; });
     var rest = shuffled(usable.filter(function (c) { return c.phase !== 'bedrock'; }));
-    return bedrock.concat(rest).slice(0, MAX_QUIZ_QUESTIONS).map(function (card) {
+    var tagQs = bedrock.concat(rest).slice(0, MAX_QUIZ_QUESTIONS).map(function (card) {
       var distractors = shuffled(QUIZ_TAGS.filter(function (t) { return t !== card.tag; })).slice(0, 3);
       return { card: card, options: shuffled([card.tag].concat(distractors)) };
     });
+    // Reasoning pairs: two claims side by side, pick which one the rebuild's
+    // rules allow. The answer falls out of the tags, but getting it takes
+    // applying the rule rather than remembering one claim's label.
+    var solid = shuffled(usable.filter(function (c) {
+      return c.tag === 'ATOMIC' || c.tag === 'VERIFIED'; }));
+    var aside = shuffled(usable.filter(function (c) {
+      return c.tag === 'CONVENTION' || c.tag === 'ASSUMPTION' || c.tag === 'UNKNOWN'; }));
+    var pairs = [];
+    var n = Math.min(2, solid.length, aside.length);
+    for (var i = 0; i < n; i++) {
+      pairs.push({ kind: 'pair', solid: solid[i], aside: aside[i],
+        direction: Math.random() < 0.5 ? 'stand' : 'aside' });
+    }
+    if (!pairs.length) return tagQs;
+    var mixed = [];
+    var pi = 0;
+    tagQs.forEach(function (q, i) {
+      mixed.push(q);
+      if (i % 2 === 0 && pi < pairs.length) mixed.push(pairs[pi++]);
+    });
+    while (pi < pairs.length) mixed.push(pairs[pi++]);
+    return mixed;
   }
 
   function buildQuiz(deck, presetQuestions) {
@@ -803,6 +825,7 @@
 
     var index = 0;
     var matched = 0;
+    var pairIntroShown = false;
     var body = el('div', 'quiz-body');
     wrap.appendChild(body);
 
@@ -810,7 +833,7 @@
       body.replaceChildren();
       var sum = el('div', 'quiz-summary');
       sum.appendChild(el('p', 'quiz-summary-count',
-        'You matched the deck on ' + matched + ' of ' + questions.length + ' claims.'));
+        'You matched the deck on ' + matched + ' of ' + questions.length + ' questions.'));
       // Deliberately "matched", not "scored": these tags are the model's
       // judgement, not ground truth, and disagreeing can be the right call.
       sum.appendChild(el('p', 'quiz-summary-note',
@@ -832,6 +855,8 @@
 
       var q = questions[index];
       body.replaceChildren();
+
+      if (q.kind === 'pair') { renderPair(q); return; }
 
       body.appendChild(el('p', 'quiz-progress',
         'Claim ' + (index + 1) + ' of ' + questions.length));
@@ -876,6 +901,82 @@
       });
 
       body.appendChild(opts);
+    }
+
+    function renderPair(q) {
+      var standDir = q.direction === 'stand';
+      body.appendChild(el('p', 'quiz-progress',
+        'Question ' + (index + 1) + ' of ' + questions.length));
+      body.appendChild(el('p', 'quiz-ask', standDir
+        ? 'Two claims from this deck. Which one can the rebuild stand on?'
+        : 'Two claims from this deck. Which one gets set aside when the answer is rebuilt?'));
+      if (!pairIntroShown) {
+        pairIntroShown = true;
+        body.appendChild(el('p', 'quiz-intro', standDir
+          ? 'The rebuild keeps only ATOMIC and VERIFIED claims. Everything else is thrown out first.'
+          : 'CONVENTION, ASSUMPTION and UNKNOWN claims never make it into the rebuild.'));
+      }
+
+      var opts = el('div', 'quiz-options');
+      var answered = false;
+      var correctCard = standDir ? q.solid : q.aside;
+
+      [q.solid, q.aside].forEach(function (card) {
+        var btn = el('button', 'quiz-option');
+        btn.type = 'button';
+        var text = el('span', 'quiz-option-text');
+        text.appendChild(el('span', 'quiz-option-label', card.principle));
+        btn.appendChild(text);
+        btn.addEventListener('click', function () {
+          if (answered) return;
+          answered = true;
+          var right = card === correctCard;
+          if (right) matched++;
+          reviewRecord(q.solid, deck, right);
+          opts.querySelectorAll('.quiz-option').forEach(function (b) { b.disabled = true; });
+          btn.classList.add(right ? 'is-right' : 'is-wrong');
+          if (!right) {
+            var c = opts.querySelector('[data-correct]');
+            if (c) c.classList.add('is-right');
+          }
+          body.appendChild(revealPair(q, right));
+        });
+        if (card === correctCard) btn.dataset.correct = 'true';
+        opts.appendChild(btn);
+      });
+
+      body.appendChild(opts);
+    }
+
+    function revealPair(q, right) {
+      var box = el('div', 'quiz-reveal');
+      var head = el('p', 'quiz-verdict ' + (right ? 'is-right' : 'is-wrong'));
+      head.appendChild(el('span', 'quiz-verdict-glyph', right ? '\u2713' : '\u2717'));
+      head.appendChild(el('span', null,
+        right ? 'That is how the rules sort it'
+              : 'The rules say: ' + (q.direction === 'stand'
+                  ? TAG_META[q.solid.tag].label + ' stands, ' + TAG_META[q.aside.tag].label + ' does not'
+                  : TAG_META[q.aside.tag].label + ' is set aside, ' + TAG_META[q.solid.tag].label + ' stays')));
+      box.appendChild(head);
+
+      [[q.solid, 'the rebuild may use this'], [q.aside, 'thrown out before the rebuild']]
+        .forEach(function (row) {
+          var meta = TAG_META[row[0].tag];
+          var line = el('p', 'quiz-meaning');
+          line.appendChild(el('span',
+            'quiz-option-glyph tag-text-' + row[0].tag.toLowerCase(), meta.glyph));
+          line.appendChild(document.createTextNode(
+            ' ' + meta.label + ' \u2014 ' + row[1]));
+          box.appendChild(line);
+          if (row[0].explanation) box.appendChild(el('p', 'quiz-why', row[0].explanation));
+        });
+
+      var next = el('button', 'quiz-next');
+      next.type = 'button';
+      next.textContent = index + 1 >= questions.length ? 'See how you did' : 'Next question';
+      next.addEventListener('click', function () { index++; renderQuestion(); });
+      box.appendChild(next);
+      return box;
     }
 
     function reveal(q, right) {
