@@ -90,12 +90,11 @@ Every claim carries a tag:
 
 ## Deployment
 
-| Target | Platform | Config | Notes |
+| Service | Platform | Config | Notes |
 |---|---|---|---|
-| Recommended | Oracle Cloud Always Free (Ampere A1) | [`deploy/oci/`](deploy/oci/) | Never sleeps, real disk, systemd unit + nginx included |
-| Alternative | Render | [`render.yaml`](render.yaml) | Minimal setup, free plan sleeps and resets state on wake |
+| App | Oracle Cloud Always Free (Ampere A1) | [`deploy/oci/`](deploy/oci/) — systemd unit, nginx, update script | Never sleeps, real disk, `STATE_DB` persists across restarts |
 
-Production settings are `APP_ACCESS_TOKEN`, `HOST=0.0.0.0`, `RELOAD=0` and `PUBLIC_URL=https://…`, run as a single instance since limits and pools live in process memory. `tools/check_providers.py` probes the chain before a deploy.
+A Render blueprint ([`render.yaml`](render.yaml)) is included too. Production runs a single instance with `APP_ACCESS_TOKEN`, `HOST=0.0.0.0`, `RELOAD=0`, since limits and pools live in process memory. `tools/check_providers.py` probes the chain before a deploy.
 
 ## Security & Observability
 
