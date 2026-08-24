@@ -24,3 +24,6 @@ _shots/
 *.db
 *.db-wal
 *.db-shm
+
+# Local planning notes, never published.
+docs/superpowers/
