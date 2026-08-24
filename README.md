@@ -53,7 +53,7 @@ cp .env.example .env   # add your key
 python main.py
 ```
 
-Open http://127.0.0.1:8000. Groq, Gemini, Cerebras, NVIDIA, Mistral, Together, OpenRouter and OpenAI work out of the box; `.env.example` documents every other option.
+ Groq, Gemini, Cerebras, NVIDIA, Mistral, Together, OpenRouter and OpenAI work out of the box; `.env.example` documents every other option.
 
 ## Tech Stack
 
