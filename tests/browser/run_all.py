@@ -26,6 +26,7 @@ SUITES = [
     ("standalone skill template", "test_skill_template.py"),
     ("access gate", "test_access_gate.py"),
     ("spaced review and library shelf", "test_review.py"),
+    ("pair questions in the quiz", "test_pair_questions.py"),
 ]
 
 

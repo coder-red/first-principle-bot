@@ -10,6 +10,11 @@ it shipped rather than by version.
 
 ### Added
 
+- Pair questions in the quiz. Instead of only matching a claim to its tag,
+  the quiz now also shows two claims side by side and asks which one the
+  rebuild's rules allow — the answer falls out of the tags, but getting it
+  takes applying the rule rather than remembering one label. Up to two pairs
+  per deck, mixed into the existing questions; review rounds are unchanged.
 - A curated deck library. `library/decks/` holds decks generated once with a
   strong model, validated against the chain contract, and read by a human
   before being committed — the repo is the CMS. Two new open endpoints
