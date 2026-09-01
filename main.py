@@ -9,6 +9,7 @@ The singletons stay module-level on purpose. The tests replace them with
 them through this module's namespace.
 """
 
+import asyncio
 import json
 import os
 from typing import List, Optional
@@ -280,6 +281,33 @@ async def chat(req: ChatRequest, request: Request):
     last_error = ""
     best = None            # the least-broken deck seen, if none verify
     best_provider = None
+    repair_task = None     # an in-flight repair on a previous provider
+    repair_meta = None     # (provider, deck) that task is repairing
+
+    def note(source, provider):
+        nonlocal best, best_provider
+        if best is None or len(source["issues"]) < len(best["issues"]):
+            best, best_provider = source, provider
+
+    async def drain_repair():
+        """Fold a previous provider's repair into `best`.
+
+        The repair runs in the background while the next provider has its go,
+        so folding it in here never adds a serialized round-trip to the tail —
+        the worst case is deck + max(repair, fallback) instead of
+        deck + repair + fallback.
+        """
+        nonlocal repair_task, repair_meta
+        if repair_task is None:
+            return
+        meta, task, repair_meta = repair_meta, repair_task, None
+        repair_task = None
+        try:
+            note(await task, meta[0])
+        except asyncio.CancelledError:
+            pass  # the task was superseded; its floor is already in `best`
+        except Exception:
+            pass  # a failed repair loses nothing: the floor is already tracked
 
     for provider in PROVIDER_POOL.order(providers):
         client = get_client(provider["api_key"], provider["endpoint"])
@@ -288,19 +316,22 @@ async def chat(req: ChatRequest, request: Request):
             deck, raw = await request_deck(client, model, messages,
                                            provider["max_tokens"])
             if deck["verified"]:
+                if repair_task is not None:
+                    repair_task.cancel()
                 return json_response(_serve(deck, req, provider))
 
-            deck = await attempt_repair(client, model, messages, raw, deck,
-                                        provider["max_tokens"])
-            if deck["verified"]:
-                return json_response(_serve(deck, req, provider))
-
-            # Still unsound: keep it as a floor and let the next provider try.
-            if best is None or len(deck["issues"]) < len(best["issues"]):
-                best, best_provider = deck, provider
+            # Unsound: keep the deck as a floor, fire a repair for it in the
+            # background, and let the next provider try while that runs.
+            note(deck, provider)
+            await drain_repair()
+            repair_meta = (provider, deck)
+            repair_task = asyncio.create_task(
+                attempt_repair(client, model, messages, raw, deck,
+                               provider["max_tokens"])
+            )
             last_error = f"{provider['name']}/{model}: chain not verified"
             COUNTERS.bump(f"provider.{provider['name']}.unverified")
-            LOG.warning("%s — trying the next provider", last_error)
+            LOG.warning("%s — repair running; trying the next provider", last_error)
             continue
         except EmptyCompletion as exc:
             last_error = str(exc)
@@ -313,6 +344,10 @@ async def chat(req: ChatRequest, request: Request):
 
         COUNTERS.bump(f"provider.{provider['name']}.error")
         LOG.warning("%s", last_error)
+
+    # Every provider tried. Collect the last in-flight repair, then serve the
+    # least-broken deck — repaired if that improved it.
+    await drain_repair()
 
     if best is not None:
         return json_response(_serve(best, req, best_provider))
@@ -485,6 +520,26 @@ async def chat_stream(req: ChatRequest, request: Request):
         last_error = ""
         best = None            # the least-broken deck seen, if none verify
         best_provider = None
+        repair_task = None     # an in-flight repair on a previous provider
+        repair_meta = None     # (provider, deck) that task is repairing
+
+        def note(source, provider):
+            nonlocal best, best_provider
+            if best is None or len(source["issues"]) < len(best["issues"]):
+                best, best_provider = source, provider
+
+        async def drain_repair():
+            nonlocal repair_task, repair_meta
+            if repair_task is None:
+                return
+            meta, task, repair_meta = repair_meta, repair_task, None
+            repair_task = None
+            try:
+                note(await task, meta[0])
+            except asyncio.CancelledError:
+                pass
+            except Exception:
+                pass
 
         for provider in PROVIDER_POOL.order(providers):
             client = get_client(provider["api_key"], provider["endpoint"])
@@ -503,28 +558,28 @@ async def chat_stream(req: ChatRequest, request: Request):
 
                 deck = normalize_deck(extract_json_object(raw))
 
-                # Same one-shot repair as the non-streaming path. The cards
-                # already sent may be replaced by the done deck; that is the
-                # honest trade for showing them early.
-                if not deck["verified"]:
-                    deck = await attempt_repair(client, model, messages, raw, deck,
-                                                provider["max_tokens"])
+                if deck["verified"]:
+                    if repair_task is not None:
+                        repair_task.cancel()
+                    yield _ndjson({"type": "done", "deck": _serve(deck, req, provider)})
+                    return
 
-                # Still unsound after its own repair: this model cannot hold the
-                # contract for this question. Keep it only as a floor and ask the
-                # next provider, which is what the chain is for. Returning here
-                # was why a weak model's shallow deck reached the reader while
-                # better providers sat unused.
-                if not deck["verified"]:
-                    if best is None or len(deck["issues"]) < len(best["issues"]):
-                        best, best_provider = deck, provider
-                    last_error = f"{provider['name']}/{model}: chain not verified"
-                    COUNTERS.bump(f"provider.{provider['name']}.unverified")
-                    LOG.warning("%s — trying the next provider", last_error)
-                    continue
-
-                yield _ndjson({"type": "done", "deck": _serve(deck, req, provider)})
-                return
+                # Still unsound after this model's go: keep the deck as a floor,
+                # fire its repair in the background, and let the next provider
+                # try while that runs. The cards already sent are replaced by
+                # whichever `done` deck wins — that is the honest trade for
+                # showing them early.
+                note(deck, provider)
+                await drain_repair()
+                repair_meta = (provider, deck)
+                repair_task = asyncio.create_task(
+                    attempt_repair(client, model, messages, raw, deck,
+                                   provider["max_tokens"])
+                )
+                last_error = f"{provider['name']}/{model}: chain not verified"
+                COUNTERS.bump(f"provider.{provider['name']}.unverified")
+                LOG.warning("%s — repair running; trying the next provider", last_error)
+                continue
 
             except EmptyCompletion as exc:
                 last_error = str(exc)
@@ -538,7 +593,10 @@ async def chat_stream(req: ChatRequest, request: Request):
             COUNTERS.bump(f"provider.{provider['name']}.error")
             LOG.warning("%s", last_error)
 
-        # Every provider tried. A flagged deck still beats no answer.
+        # Every provider tried. Fold the last in-flight repair in, then serve
+        # whichever deck is least broken — a flagged deck still beats no answer.
+        await drain_repair()
+
         if best is not None:
             yield _ndjson({"type": "done", "deck": _serve(best, req, best_provider)})
             return
