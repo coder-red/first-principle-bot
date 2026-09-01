@@ -153,9 +153,11 @@ def build_plan_prompt(question: str, context: str = "") -> str:
 Question: {question}
 {context}
 
-Your task: output a JSON DecompositionPlan that breaks down THIS SPECIFIC QUESTION. Do not invent metaphors. Do not answer a different question. Do not confuse "decomposition" with "presentation deck" or "card deck".
+Your task: output a JSON ReasoningChain that breaks down THIS SPECIFIC QUESTION. Do not invent metaphors. Do not answer a different question.
 
-Decide the descent depth (2, 3, or 4). Then for each step write:
+CRITICAL: The word "chain" in "ReasoningChain" is a technical term for the reasoning structure. Do NOT write about presentation decks, slide decks, card decks, construction decks, or any kind of deck. Do not use the word "deck" anywhere in your output. If you output the word "deck", your answer will be rejected.
+
+Decide the descent depth (2, 3, or 4). Then for each reasoning step write:
 - title (≤6 words): the claim or reasoning step at this level
 - principle (≤20 words): the irreducible truth this step rests on
 
@@ -184,5 +186,5 @@ Rules:
 - principle = the irreducible claim this step rests on (not a restatement)
 - followups = 1-3 short follow-up questions a curious reader would ask
 - Your decomposition must be SPECIFIC to the question asked — no generic templates
-- The word "deck" in the output format name is a technical term for the reasoning structure; do NOT write about presentation decks, card decks, or construction
+- FORBIDDEN WORD: "deck" — do not use it anywhere in your JSON output
 """
