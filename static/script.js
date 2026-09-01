@@ -17,9 +17,12 @@
   var MAX_STORED_TURNS = 20;
 
   // Sits above the server's own ceiling so the server's clearer error wins the
-  // race whenever it is the model that stalled.
-  var CLIENT_DEADLINE_MS = 150000;
+  // race whenever it is the model that stalled. Generous on purpose: a Render
+  // free instance cold-starts (~1 min) before the first deck call, and a chain
+  // of fallback providers can stack a few slow attempts on top of that.
+  var CLIENT_DEADLINE_MS = 300000;
   var SLOW_NOTICE_MS = 20000;
+  var WAKE_NOTICE_MS = 8000;
 
   var $ = function (s) { return document.querySelector(s); };
 
@@ -1769,21 +1772,28 @@
   /* ── send ──────────────────────────────────────────────────────────── */
 
   var slowTimer = null;
+  var wakeTimer = null;
 
   function showTyping() {
     var label = typingEl.querySelector('.typing-label');
     if (label) label.textContent = 'Decomposing to first principles...';
     typingEl.classList.remove('hidden');
-    // A 30s wait with a static label is indistinguishable from a hang.
+    // Two stages so a long first byte never reads as a hang: suspect the
+    // server waking from idle first, then concede it is just slow.
     clearTimeout(slowTimer);
+    clearTimeout(wakeTimer);
+    wakeTimer = setTimeout(function () {
+      if (label) label.textContent = 'No cards yet — if the app sat idle, the server is waking up (about a minute)';
+    }, WAKE_NOTICE_MS);
     slowTimer = setTimeout(function () {
-      if (label) label.textContent = 'Still working — a deep chain can take a minute';
+      if (label) label.textContent = 'Still working — the server may still be waking, or the chain is just deep';
     }, SLOW_NOTICE_MS);
     scrollToBottom();
   }
 
   function hideTyping() {
     clearTimeout(slowTimer);
+    clearTimeout(wakeTimer);
     typingEl.classList.add('hidden');
   }
 
@@ -1929,8 +1939,8 @@
           // responses from the reader.
           deckEl.classList.remove('is-pending');
           deckEl.replaceChildren(el('p', 'deck-error',
-            'This took longer than ' + Math.round(CLIENT_DEADLINE_MS / 1000)
-            + ' seconds and was given up on. The model may be overloaded.'));
+            'Gave up after ' + Math.round(CLIENT_DEADLINE_MS / 1000)
+            + ' seconds without a deck. The server may have still been waking, or the model overloaded.'));
           showToast('The request timed out', {
             label: 'Try again',
             cb: function () { deckEl.remove(); sendMessage(text, focus); },
