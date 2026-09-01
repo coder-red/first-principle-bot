@@ -1470,8 +1470,17 @@
   }
 
   function addPendingDeck() {
+    // The loading bar shows the moment the question is sent, not only after the
+    // first card has streamed — the first byte can be the slowest part (a cold
+    // server has to wake), and that wait must not read as nothing happening.
     var block = el('div', 'answer is-pending');
-    block.appendChild(el('div', 'answer-skeleton'));
+    block.appendChild(el('span', 'stream-label', 'Decomposing'));
+    var bar = el('div', 'stream-bar');
+    var fill = el('div', 'stream-bar-fill');
+    fill.style.width = streamProgress([]) + '%';
+    bar.appendChild(fill);
+    block.appendChild(bar);
+    block.appendChild(el('div', 'stream-dots'));
     messagesEl.appendChild(block);
     scrollToBottom();
     return block;
