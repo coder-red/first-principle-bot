@@ -49,6 +49,7 @@ from fpb.deck import (
     repair_instruction,
     validate_chain,
 )
+from fpb.fill import attempt_plan_expand
 from fpb.explore import (
     EXPLORE_BATCH,
     EXPLORE_LOW_WATER,
@@ -277,6 +278,23 @@ async def chat(req: ChatRequest, request: Request):
         return json_response(make_error_deck(req.message, NO_PROVIDER_MESSAGE))
 
     messages = build_messages(req)
+
+    # Fast path: Plan → deterministic Deck expansion (no validator, no repair, no fallback).
+    # Enabled via USE_PLAN_EXPAND=1 env var. Old path below remains untouched.
+    if os.environ.get("USE_PLAN_EXPAND", "").strip() in ("1", "true", "True"):
+        for provider in PROVIDER_POOL.order(providers):
+            client = get_client(provider["api_key"], provider["endpoint"])
+            model = provider["model"]
+            try:
+                deck = await attempt_plan_expand(client, model, messages,
+                                                 provider["max_tokens"])
+                return json_response(_serve(deck, req, provider))
+            except Exception as exc:
+                COUNTERS.bump(f"provider.{provider['name']}.plan_expand_error")
+                LOG.warning("plan-expand failed on %s/%s: %s, falling back to old path",
+                            provider["name"], model, exc)
+                continue
+        # If all providers failed plan-expand, fall through to old path
 
     last_error = ""
     best = None            # the least-broken deck seen, if none verify
@@ -517,6 +535,25 @@ async def chat_stream(req: ChatRequest, request: Request):
             return
 
         messages = build_messages(req)
+
+        # Fast path: Plan → deterministic Deck expansion (single call, no streaming).
+        # Enabled via USE_PLAN_EXPAND=1. Old streaming path below remains untouched.
+        if os.environ.get("USE_PLAN_EXPAND", "").strip() in ("1", "true", "True"):
+            for provider in PROVIDER_POOL.order(providers):
+                client = get_client(provider["api_key"], provider["endpoint"])
+                model = provider["model"]
+                try:
+                    deck = await attempt_plan_expand(client, model, messages,
+                                                     provider["max_tokens"])
+                    yield _ndjson({"type": "done", "deck": _serve(deck, req, provider)})
+                    return
+                except Exception as exc:
+                    COUNTERS.bump(f"provider.{provider['name']}.plan_expand_error")
+                    LOG.warning("plan-expand failed on %s/%s: %s, falling back to old path",
+                                provider["name"], model, exc)
+                    continue
+            # If all providers failed plan-expand, fall through to old streaming path
+
         last_error = ""
         best = None            # the least-broken deck seen, if none verify
         best_provider = None
