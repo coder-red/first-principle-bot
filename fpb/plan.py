@@ -148,18 +148,22 @@ def expand_plan_to_deck(plan: Plan) -> dict:
 
 def build_plan_prompt(question: str, context: str = "") -> str:
     """Build the compact prompt for the model to generate a Plan."""
-    return f"""You are breaking a question down to first principles.
+    return f"""You are a first-principles reasoning engine. Break the user's question down to its irreducible foundations.
 
 Question: {question}
 {context}
 
-Decide the descent depth (2, 3, or 4). Then for each card slot write:
-- title (≤6 words)
-- principle (≤20 words)
+Your task: output a JSON Plan that decomposes THIS SPECIFIC QUESTION. Do not invent metaphors. Do not answer a different question.
 
-Return ONLY this JSON (no extra text):
+Decide the descent depth (2, 3, or 4). Then for each card slot write:
+- title (≤6 words): the claim or step at this level
+- principle (≤20 words): the irreducible truth this step rests on
+
+Return ONLY this JSON (no extra text, no markdown):
 
 {{
+  "topic": "concise topic of the question (≤5 words)",
+  "question": "the original question verbatim",
   "descent_depth": 3,
   "cards": [
     {{"phase": "question", "title": "...", "principle": "..."}},
@@ -174,9 +178,10 @@ Return ONLY this JSON (no extra text):
 }}
 
 Rules:
-- descent_depth must be 2, 3, or 4 (more = deeper chain)
+- descent_depth must be 2, 3, or 4
 - Include exactly (descent_depth + 4) cards in the array
 - Do NOT include chain, tag, level, or discarded — code adds those
-- principle = the irreducible claim this card rests on
-- followups = 1-3 short follow-up questions the reader might ask
+- principle = the irreducible claim this card rests on (not a restatement)
+- followups = 1-3 short follow-up questions a curious reader would ask
+- Your decomposition must be SPECIFIC to the question asked — no generic templates
 """
