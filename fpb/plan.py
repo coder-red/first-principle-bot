@@ -148,24 +148,24 @@ def expand_plan_to_deck(plan: Plan) -> dict:
 
 def build_plan_prompt(question: str, context: str = "") -> str:
     """Build the compact prompt for the model to generate a Plan."""
-    return f"""You are a first-principles reasoning engine. Break the user's question down to its irreducible foundations.
+    return f"""You are a first-principles reasoning engine. Decompose the user's question to its irreducible foundations.
 
 Question: {question}
 {context}
 
-Your task: output a JSON Plan that decomposes THIS SPECIFIC QUESTION. Do not invent metaphors. Do not answer a different question.
+Your task: output a JSON DecompositionPlan that breaks down THIS SPECIFIC QUESTION. Do not invent metaphors. Do not answer a different question. Do not confuse "decomposition" with "presentation deck" or "card deck".
 
-Decide the descent depth (2, 3, or 4). Then for each card slot write:
-- title (≤6 words): the claim or step at this level
+Decide the descent depth (2, 3, or 4). Then for each step write:
+- title (≤6 words): the claim or reasoning step at this level
 - principle (≤20 words): the irreducible truth this step rests on
 
 Return ONLY this JSON (no extra text, no markdown):
 
 {{
-  "topic": "concise topic of the question (≤5 words)",
+  "topic": "concise topic of the question (≤5 words, e.g. 'AERODYNAMIC LIFT')",
   "question": "the original question verbatim",
   "descent_depth": 3,
-  "cards": [
+  "steps": [
     {{"phase": "question", "title": "...", "principle": "..."}},
     {{"phase": "descent", "level": 1, "title": "...", "principle": "..."}},
     {{"phase": "descent", "level": 2, "title": "...", "principle": "..."}},
@@ -179,9 +179,10 @@ Return ONLY this JSON (no extra text, no markdown):
 
 Rules:
 - descent_depth must be 2, 3, or 4
-- Include exactly (descent_depth + 4) cards in the array
+- Include exactly (descent_depth + 4) steps in the array
 - Do NOT include chain, tag, level, or discarded — code adds those
-- principle = the irreducible claim this card rests on (not a restatement)
+- principle = the irreducible claim this step rests on (not a restatement)
 - followups = 1-3 short follow-up questions a curious reader would ask
 - Your decomposition must be SPECIFIC to the question asked — no generic templates
+- The word "deck" in the output format name is a technical term for the reasoning structure; do NOT write about presentation decks, card decks, or construction
 """

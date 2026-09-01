@@ -79,7 +79,7 @@ async def attempt_plan_expand(
                 explanation=c.get("explanation", ""),
                 takeaway=c.get("takeaway", ""),
             )
-            for c in plan_data.get("cards", [])
+            for c in plan_data.get("steps", [])
         ],
         reframed=plan_data.get("reframed", False),
         followups=plan_data.get("followups", []),
