@@ -280,7 +280,7 @@ async def chat(req: ChatRequest, request: Request):
     messages = build_messages(req)
 
     # Fast path: Plan → deterministic Deck expansion (no validator, no repair, no fallback).
-    # Enabled via USE_PLAN_EXPAND=1 env var. Old path below remains untouched.
+    # DISABLED BY DEFAULT due to prompt quality issues. Enable via USE_PLAN_EXPAND=1.
     if os.environ.get("USE_PLAN_EXPAND", "").strip() in ("1", "true", "True"):
         for provider in PROVIDER_POOL.order(providers):
             client = get_client(provider["api_key"], provider["endpoint"])
@@ -537,7 +537,7 @@ async def chat_stream(req: ChatRequest, request: Request):
         messages = build_messages(req)
 
         # Fast path: Plan → deterministic Deck expansion (single call, no streaming).
-        # Enabled via USE_PLAN_EXPAND=1. Old streaming path below remains untouched.
+        # DISABLED BY DEFAULT due to prompt quality issues. Enable via USE_PLAN_EXPAND=1.
         if os.environ.get("USE_PLAN_EXPAND", "").strip() in ("1", "true", "True"):
             for provider in PROVIDER_POOL.order(providers):
                 client = get_client(provider["api_key"], provider["endpoint"])
