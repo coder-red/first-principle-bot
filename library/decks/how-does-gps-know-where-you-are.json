@@ -1,0 +1,143 @@
+{
+  "topic": "GPS Location",
+  "question": "How does GPS know where you are?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Location Question",
+      "question": "How does GPS determine your precise location on Earth?",
+      "tag": "CONVENTION",
+      "principle": "GPS determines location by receiving signals from satellites and calculating positions from them.",
+      "chain": [],
+      "discarded": [
+        "GPS uses triangulation to find your position."
+      ],
+      "explanation": "Many people believe GPS works by 'triangulation,' which involves angles. However, GPS uses distances, a different geometric principle. The core task is to determine distance to multiple points in space.",
+      "takeaway": "GPS uses distances, not angles."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Distance from Signal Time",
+      "question": "How does receiving a signal from a satellite lead to knowing distance?",
+      "tag": "VERIFIED",
+      "principle": "A GPS receiver calculates its distance to each satellite by measuring the exact time it takes for the radio signal to travel from the satellite to the receiver.",
+      "chain": [
+        "GPS determines location by receiving signals.",
+        "Distance is found from signal travel time."
+      ],
+      "discarded": [],
+      "explanation": "Radio signals travel at a known, constant speed. If you know how long a signal took to travel, you can multiply that time by the signal's speed to find the distance it covered. This is the first step to knowing where you are.",
+      "takeaway": "Distance = Speed x Time."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Measuring Signal Travel Time",
+      "question": "How is the signal travel time measured precisely?",
+      "tag": "VERIFIED",
+      "principle": "Satellites broadcast unique, time-stamped pseudo-random codes, and the receiver measures the delay between its locally generated code and the received satellite code.",
+      "chain": [
+        "GPS determines location by receiving signals.",
+        "Distance is found from signal travel time.",
+        "Travel time is measured by comparing synchronized codes."
+      ],
+      "discarded": [],
+      "explanation": "Each satellite continuously transmits a unique digital code, precisely time-stamped with the satellite's atomic clock. Your receiver generates the same code. The difference between when the satellite *sent* its code and when your receiver *matched* it is the travel time.",
+      "takeaway": "Compare codes to find delay."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Code Matching for Delay",
+      "question": "How does comparing these codes precisely yield a time delay?",
+      "tag": "VERIFIED",
+      "principle": "The receiver generates its own version of the satellite's code and shifts it in time until it perfectly correlates with the received satellite signal, with the time shift representing the signal's travel time.",
+      "chain": [
+        "GPS determines location by receiving signals.",
+        "Distance is found from signal travel time.",
+        "Travel time is measured by comparing synchronized codes.",
+        "Code correlation reveals the exact time shift."
+      ],
+      "discarded": [],
+      "explanation": "The pseudo-random codes are designed to have very low correlation with themselves at any time shift other than zero. The receiver continuously slides its locally generated code against the incoming satellite signal. When the two codes align perfectly, a strong correlation peak is detected, and the amount of time the local code had to be shifted is the exact travel time.",
+      "takeaway": "Sliding codes until they match gives travel time."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Constant Speed of Light",
+      "question": "What fundamental principle allows time-of-flight to determine distance accurately?",
+      "tag": "ATOMIC",
+      "principle": "Radio signals, a form of electromagnetic radiation, travel at the constant, known speed of light in a vacuum, making distance a direct product of speed and time.",
+      "chain": [
+        "GPS determines location by receiving signals.",
+        "Distance is found from signal travel time.",
+        "Travel time is measured by comparing synchronized codes.",
+        "Code correlation reveals the exact time shift.",
+        "Distance = Speed x Time, with constant speed of light."
+      ],
+      "discarded": [],
+      "explanation": "The speed of light is a universal physical constant, approximately 299,792,458 meters per second. This unchanging speed provides the fixed ratio between time and distance, making time-of-flight measurements reliable for determining distance.",
+      "takeaway": "Light's speed is constant."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "Trilateration for Position",
+      "question": "How do multiple distance measurements pinpoint a single location?",
+      "tag": "VERIFIED",
+      "principle": "Knowing the precise distance to three or more satellites, whose exact positions are known, allows the receiver to calculate its unique position in 3D space through trilateration.",
+      "chain": [
+        "Distance is found from signal travel time.",
+        "Multiple distances define a unique point (trilateration)."
+      ],
+      "discarded": [],
+      "explanation": "Each distance measurement places your receiver on the surface of an imaginary sphere centered on that satellite. The intersection of three such spheres typically yields two points in space, one of which is usually discarded as implausible (e.g., far from Earth). A fourth satellite helps resolve timing errors and confirm the position.",
+      "takeaway": "Three spheres intersect at your spot."
+    },
+    {
+      "phase": "rebuild",
+      "level": 1,
+      "title": "Correcting for Receiver Clock Error",
+      "question": "How does the receiver achieve the necessary timing accuracy for these calculations without an atomic clock?",
+      "tag": "VERIFIED",
+      "principle": "Satellites carry atomic clocks, and the receiver solves for its own less precise internal clock's error as an additional unknown in the position calculation, requiring at least four satellites.",
+      "chain": [
+        "GPS determines location by receiving signals.",
+        "Precise timing is achieved by atomic clocks and error solving."
+      ],
+      "discarded": [],
+      "explanation": "While satellite clocks are incredibly stable, your receiver's clock is not. By receiving signals from at least four satellites, the receiver can treat its own clock's offset from true GPS time as an unknown variable, solving for it simultaneously with its 3D position (x, y, z, and time offset).",
+      "takeaway": "Receiver uses 4th satellite to correct its own clock."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Location as a Time Problem",
+      "question": "What is the core insight into how GPS works?",
+      "tag": "ATOMIC",
+      "principle": "GPS fundamentally transforms the problem of knowing location into a problem of precisely measuring time differences, leveraging a universal physical constant (the speed of light).",
+      "chain": [],
+      "discarded": [],
+      "explanation": "The entire GPS system hinges on the ability to measure tiny fractions of a second with extreme accuracy. A nanosecond error in time measurement translates to nearly a foot of error in distance. The 'knowing' of location is a direct consequence of 'knowing' time differences precisely.",
+      "takeaway": "GPS solves for location by solving for time."
+    }
+  ],
+  "followups": [
+    "How do GPS satellites know their own precise positions in orbit?",
+    "What factors introduce errors into GPS measurements, and how are they mitigated?",
+    "How do other satellite navigation systems (like GLONASS or Galileo) differ from GPS?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "how-does-gps-know-where-you-are",
+    "sector": "technology",
+    "model": "gemini-2.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

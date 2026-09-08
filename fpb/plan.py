@@ -48,7 +48,6 @@ def expand_plan_to_deck(plan: Plan) -> dict:
 
     cards = []
     chain_so_far: List[str] = []
-    chain_ids = []  # chain id per descent card (a, b, c, d)
 
     # 1. QUESTION
     q_card = plan.cards[0] if len(plan.cards) > 0 else PlanCard()
@@ -68,9 +67,9 @@ def expand_plan_to_deck(plan: Plan) -> dict:
     # 2. DESCENT (d cards, levels 1..d)
     for i in range(d):
         d_card = plan.cards[1 + i] if 1 + i < len(plan.cards) else PlanCard()
-        chain_id = chr(ord("a") + i)
-        chain_so_far.append(chain_id)
-        chain_ids.append(chain_id)
+        # The chain rung is the card's own claim, so a rendered ladder reads
+        # "surface -> claim 1 -> claim 2 -> ..." instead of meaningless letters.
+        chain_so_far.append(d_card.principle or d_card.title or f"Step {i + 1}")
 
         cards.append({
             "phase": "descent",
@@ -78,7 +77,7 @@ def expand_plan_to_deck(plan: Plan) -> dict:
             "title": d_card.title or f"Step {i + 1}",
             "question": d_card.question or "What must be true here?",
             "tag": "VERIFIED",
-            "principle": d_card.principle or f"p{chain_id}",
+            "principle": d_card.principle or f"p{i + 1}",
             "chain": list(chain_so_far),
             "discarded": d_card.discarded or [],
             "explanation": d_card.explanation or "I don't know.",
@@ -102,7 +101,7 @@ def expand_plan_to_deck(plan: Plan) -> dict:
 
     # 4. REBUILD (level = d - 1, tag = VERIFIED, chain = [bedrock, last_descent])
     r_card = plan.cards[2 + d] if 2 + d < len(plan.cards) else PlanCard()
-    rebuild_chain = [chain_so_far[-1], chr(ord("a") + d)]
+    rebuild_chain = [chain_so_far[-1], b_card.principle or "irreducible"]
     cards.append({
         "phase": "rebuild",
         "level": d - 1,

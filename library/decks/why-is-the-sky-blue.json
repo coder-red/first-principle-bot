@@ -1,0 +1,127 @@
+{
+  "topic": "Sky Color",
+  "question": "Why does the sky appear blue?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Sky's Apparent Color",
+      "question": "What is the most common belief about why the sky is blue?",
+      "tag": "CONVENTION",
+      "principle": "Most people observe the sky as blue and often attribute this to the reflection of the ocean.",
+      "chain": [
+        "The sky appears blue."
+      ],
+      "discarded": [
+        "The sky's blue color is a reflection of the ocean."
+      ],
+      "explanation": "We perceive the sky as blue. A common, though incorrect, explanation is that it reflects the vast blue oceans. However, the sky is blue even over landlocked areas or deserts, which contradicts this idea.",
+      "takeaway": "The sky's blueness is not from ocean reflection."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Atmospheric Light Interaction",
+      "question": "What primary process causes the sky to appear blue?",
+      "tag": "VERIFIED",
+      "principle": "The sky appears blue because sunlight interacts with Earth's atmosphere, causing light to scatter.",
+      "chain": [
+        "The sky appears blue.",
+        "Sunlight scatters in the atmosphere."
+      ],
+      "discarded": [],
+      "explanation": "Sunlight, which appears white, is actually composed of all colors of the rainbow. When this light enters Earth's atmosphere, it encounters gas molecules and other particles. This interaction redirects the light in various directions, a process called scattering.",
+      "takeaway": "Atmosphere scatters sunlight."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Wavelength and Scattering Efficiency",
+      "question": "How does scattering lead to a specific color being dominant?",
+      "tag": "VERIFIED",
+      "principle": "The efficiency of light scattering depends on the wavelength of the light and the size of the scattering particles.",
+      "chain": [
+        "The sky appears blue.",
+        "Sunlight scatters in the atmosphere.",
+        "Scattering efficiency varies by wavelength."
+      ],
+      "discarded": [],
+      "explanation": "Not all colors of light scatter equally. How much a particular color scatters is determined by its wavelength and the physical size of the particles it hits. This relationship dictates which colors are dispersed more widely.",
+      "takeaway": "Scattering depends on wavelength and particle size."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Preferential Scattering of Shorter Wavelengths",
+      "question": "What specific relationship governs the scattering of different wavelengths by small particles?",
+      "tag": "VERIFIED",
+      "principle": "Shorter wavelengths of light, like blue and violet, scatter much more strongly than longer wavelengths when interacting with particles significantly smaller than their wavelength.",
+      "chain": [
+        "The sky appears blue.",
+        "Sunlight scatters in the atmosphere.",
+        "Scattering efficiency varies by wavelength.",
+        "Shorter wavelengths scatter preferentially."
+      ],
+      "discarded": [],
+      "explanation": "When light encounters particles much smaller than its own wavelength, a specific type of scattering occurs. This process, known as Rayleigh scattering, dictates that shorter wavelengths (blue and violet light) are scattered far more intensely than longer wavelengths (red and yellow light).",
+      "takeaway": "Tiny particles scatter short wavelengths best."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Atmospheric Composition and Particle Size",
+      "question": "What are the specific particles in the atmosphere that cause this preferential scattering?",
+      "tag": "ATOMIC",
+      "principle": "Earth's atmosphere is primarily composed of nitrogen and oxygen molecules, which are much smaller than the wavelengths of visible light.",
+      "chain": [
+        "The sky appears blue.",
+        "Sunlight scatters in the atmosphere.",
+        "Scattering efficiency varies by wavelength.",
+        "Shorter wavelengths scatter preferentially.",
+        "Atmospheric molecules are tiny."
+      ],
+      "discarded": [],
+      "explanation": "The fundamental components of our atmosphere are individual nitrogen (N2) and oxygen (O2) molecules. These molecules are on the order of nanometers in size, which is significantly smaller than the hundreds of nanometers that constitute the wavelengths of visible light. This size difference is the physical basis for Rayleigh scattering.",
+      "takeaway": "Atmosphere is tiny N2/O2 molecules."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "Blue Light Reaches Our Eyes",
+      "question": "How does this scattering make the sky appear blue to us?",
+      "tag": "VERIFIED",
+      "principle": "As sunlight passes through the atmosphere, blue light is scattered in all directions by tiny gas molecules, reaching our eyes from across the sky, while other colors pass through more directly.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "Because blue light is scattered so much more effectively by the tiny atmospheric molecules, it is dispersed across the entire sky. When we look up, blue light reaches our eyes from every direction, making the sky appear blue. The longer wavelengths, like red and yellow, are scattered much less and tend to travel more directly from the sun to our eyes.",
+      "takeaway": "Scattered blue light fills the sky."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "An Emergent Phenomenon",
+      "question": "What does this reveal about the nature of the sky's color?",
+      "tag": "ATOMIC",
+      "principle": "The blueness of the sky is not an inherent property of the atmosphere itself, but an emergent phenomenon resulting from the specific interaction between sunlight and atmospheric molecular structure.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "The sky is not 'painted' blue; its color is a dynamic consequence of physics. If the sun emitted light with a different spectrum, or if our atmosphere had different-sized particles, the sky's color would change. This reveals that what we perceive as a fundamental property of our world is actually a specific outcome of fundamental physical laws and conditions.",
+      "takeaway": "Sky color is an interaction, not an intrinsic property."
+    }
+  ],
+  "followups": [
+    "Why is the sky sometimes red or orange at sunrise and sunset?",
+    "How would the sky appear if Earth had no atmosphere?",
+    "Do other planets have blue skies, and why or why not?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-is-the-sky-blue",
+    "sector": "physics",
+    "model": "gemini-2.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

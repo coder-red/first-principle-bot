@@ -1,0 +1,132 @@
+{
+  "topic": "Glue Adhesion",
+  "question": "Why does glue make things stick together?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Phenomenon of Sticking",
+      "question": "What is the fundamental nature of 'sticking'?",
+      "tag": "CONVENTION",
+      "principle": "Most people observe that glue creates a strong connection between surfaces, preventing them from separating easily.",
+      "chain": [
+        "Glue makes things stick."
+      ],
+      "discarded": [
+        "Glue is just 'sticky' by nature."
+      ],
+      "explanation": "The common understanding of glue is that it possesses an inherent 'stickiness' that causes materials to bond. This observation, while true, does not explain the underlying physical mechanism.",
+      "takeaway": "Sticking is an observed effect, not a cause."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Glue Forms a Physical Bridge",
+      "question": "How does glue physically connect two separate surfaces?",
+      "tag": "VERIFIED",
+      "principle": "Glue works by forming a continuous material layer that physically bridges the gap between the two surfaces.",
+      "chain": [
+        "Glue makes things stick.",
+        "Glue forms a continuous layer between surfaces."
+      ],
+      "discarded": [],
+      "explanation": "When applied, glue is typically in a liquid or semi-liquid state, allowing it to conform to the surface irregularities of both materials. As it cures or dries, it solidifies into a continuous, solid film that physically connects the two items.",
+      "takeaway": "Glue creates a solid link."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Molecular Attraction Resists Separation",
+      "question": "What prevents this solid glue layer from separating from the surfaces or breaking internally?",
+      "tag": "VERIFIED",
+      "principle": "The resistance to separation arises from attractive forces between the glue molecules and the surface molecules, and between the glue molecules themselves.",
+      "chain": [
+        "Glue makes things stick.",
+        "Glue forms a continuous layer between surfaces.",
+        "Molecular attractions hold the layer to surfaces and itself."
+      ],
+      "discarded": [
+        "Adhesion is the cause.",
+        "Cohesion is the cause."
+      ],
+      "explanation": "The terms 'adhesion' (glue-to-surface attraction) and 'cohesion' (glue-to-glue attraction) describe these phenomena, but do not explain their origin. These attractions are fundamental forces acting at the molecular level, preventing the glue from detaching from the surfaces or fracturing internally.",
+      "takeaway": "Forces between molecules create resistance."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Electromagnetic Forces Govern Molecular Bonds",
+      "question": "What is the nature of these attractive forces between molecules?",
+      "tag": "VERIFIED",
+      "principle": "These molecular attractive forces are specific manifestations of the electromagnetic force, including Van der Waals forces, hydrogen bonds, and sometimes covalent bonds.",
+      "chain": [
+        "Glue makes things stick.",
+        "Glue forms a continuous layer between surfaces.",
+        "Molecular attractions hold the layer to surfaces and itself.",
+        "These attractions are electromagnetic forces."
+      ],
+      "discarded": [],
+      "explanation": "Atoms and molecules interact through their electron clouds. These interactions create various types of bonds and attractions. Van der Waals forces, for example, arise from temporary fluctuations in electron distribution, while hydrogen bonds involve specific interactions between hydrogen and highly electronegative atoms. Some glues also form strong, permanent covalent bonds.",
+      "takeaway": "Molecular attractions are electromagnetic."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "The Electromagnetic Force is Fundamental",
+      "question": "What is the ultimate origin of all forces between atoms and molecules?",
+      "tag": "ATOMIC",
+      "principle": "All forces that govern interactions between atoms and molecules, including those responsible for chemical bonds and intermolecular attractions, are manifestations of the electromagnetic force.",
+      "chain": [
+        "Glue makes things stick.",
+        "Glue forms a continuous layer between surfaces.",
+        "Molecular attractions hold the layer to surfaces and itself.",
+        "These attractions are electromagnetic forces.",
+        "All molecular forces are electromagnetic."
+      ],
+      "discarded": [],
+      "explanation": "The electromagnetic force is one of the four fundamental forces of nature. It governs how charged particles interact, and since atoms are composed of charged protons and electrons, this force dictates how they attract, repel, and bond to form molecules and larger structures. Without it, matter as we know it would not exist.",
+      "takeaway": "Electromagnetism holds matter together."
+    },
+    {
+      "phase": "rebuild",
+      "level": 1,
+      "title": "Rebuilding the Explanation of Sticking",
+      "question": "How do fundamental forces explain glue's sticking power?",
+      "tag": "VERIFIED",
+      "principle": "Glue sticks because it provides a medium that establishes a network of electromagnetic bonds, both within itself and with the surfaces it contacts, creating resistance to separation.",
+      "chain": [
+        "Glue makes things stick."
+      ],
+      "discarded": [],
+      "explanation": "Starting from the bedrock, the electromagnetic force allows atoms and molecules to attract each other. Glue is a substance engineered to maximize these attractions. It flows into surface irregularities, then solidifies, forming a continuous bridge. This bridge is held together and to the surfaces by a multitude of electromagnetic interactions, making it resistant to external forces that try to pull the surfaces apart.",
+      "takeaway": "Glue leverages electromagnetism to bond."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Universal Forces at Play",
+      "question": "What does glue reveal about how the world works?",
+      "tag": "",
+      "principle": "Glue's ability to stick is not a unique or magical property, but a macroscopic demonstration of the same fundamental electromagnetic forces that hold all matter together, from individual atoms to entire structures.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "By stripping away the conventional idea of 'stickiness,' we see that glue simply optimizes universal physical laws. The forces that make glue stick are the same forces that give water its surface tension, hold a rock together, or allow a gecko to climb a wall. Glue is a designed application of these omnipresent forces.",
+      "takeaway": "Glue reveals universal electromagnetic bonding."
+    }
+  ],
+  "followups": [
+    "Why do some glues require heat or light to cure?",
+    "What makes 'super glue' (cyanoacrylate) so fast-acting?",
+    "How do different surface properties affect glue's effectiveness?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-does-glue-stick",
+    "sector": "everyday",
+    "model": "gemini-2.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

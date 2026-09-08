@@ -178,6 +178,48 @@ def test_junk_output_does_not_crash_the_stream(monkeypatch):
     assert events[-1]["type"] == "done"
 
 
+def test_a_token_cutoff_is_flagged_as_truncated(monkeypatch):
+    """finish_reason='length' means the deck's tail is missing, so the app
+    must say so rather than render a deck that looks complete. The truncation
+    must be detected even though some cards already streamed out."""
+
+    class Truncating:
+        async def create(self, **kwargs):
+            class Stream:
+                def __aiter__(self):
+                    async def gen():
+                        # One card, then the final chunk reports the cutoff.
+                        yield SimpleNamespace(choices=[SimpleNamespace(
+                            delta=SimpleNamespace(content='{"cards": ['))])
+                        yield SimpleNamespace(choices=[SimpleNamespace(
+                            delta=SimpleNamespace(
+                                content='{"phase": "question", "title": "T"}]}'))])
+                        yield SimpleNamespace(choices=[SimpleNamespace(
+                            finish_reason="length",
+                            delta=SimpleNamespace(content=""))])
+                    return gen()
+            return Stream()
+
+    monkeypatch.setattr(main, "get_providers", lambda: [
+        {"name": "test", "model": "m", "endpoint": "http://x",
+         "api_key": "test-key", "max_tokens": 4000},
+    ])
+    monkeypatch.setattr(main, "get_client", lambda *a, **k: SimpleNamespace(
+        chat=SimpleNamespace(completions=SimpleNamespace(create=Truncating().create))))
+    # So the error deck names truncation instead of the sanitized default.
+    monkeypatch.setenv("DEBUG_ERRORS", "1")
+
+    with client.stream("POST", "/api/chat/stream",
+                       json={"message": "Why is the sky blue?"}) as r:
+        events = [json.loads(l) for l in r.iter_lines() if l.strip()]
+    # The stream endpoint ends with a done event carrying an error deck that
+    # names the real problem (truncation), not 'unusable JSON'.
+    assert events[-1]["type"] == "done"
+    deck = events[-1]["deck"]
+    assert deck["verified"] is False
+    assert "cut off" in deck["cards"][0]["explanation"]
+
+
 # ── falling through on an unsound chain ──────────────────────────────────
 #
 # A deck that breaks its own rules is the one thing this app cannot serve as

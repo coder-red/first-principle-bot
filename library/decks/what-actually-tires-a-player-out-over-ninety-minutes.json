@@ -1,0 +1,138 @@
+{
+  "topic": "Player fatigue in 90-minute sports",
+  "question": "What actually causes physical fatigue in a player over 90 minutes?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The surface view of fatigue",
+      "question": "Why do players slow down and tire out late in a match?",
+      "tag": "CONVENTION",
+      "principle": "Most people believe players tire because lactic acid builds up in their muscles or because their lungs run out of oxygen.",
+      "chain": [
+        "Fatigue comes from lactic acid build-up and heavy breathing"
+      ],
+      "discarded": [
+        "Lactic acid causes long-term muscle fatigue",
+        "Lungs running out of oxygen is the limiting factor"
+      ],
+      "explanation": "Lactic acid clears from the bloodstream within minutes of sub-maximal rest and is used as energy by heart and muscle cells. Oxygen intake also stays adequate throughout a match. Neither explains why power output drops after 70 or 80 minutes.",
+      "takeaway": "Lactic acid accumulation does not cause 90-minute fatigue."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Muscles require ATP to contract",
+      "question": "What physically drives every muscle contraction during a game?",
+      "tag": "VERIFIED",
+      "principle": "Muscle fibers contract only when adenosine triphosphate (ATP) breaks down to release chemical energy.",
+      "chain": [
+        "Fatigue comes from lactic acid build-up and heavy breathing",
+        "Muscle contractions require continuous ATP hydrolysis"
+      ],
+      "discarded": [
+        "Direct muscle structural damage as the primary short-term fatigue cause"
+      ],
+      "explanation": "Cells store only enough ready-made ATP for a few seconds of maximum effort. To keep running and kicking, muscle cells must continuously rebuild ATP from stored chemical fuels.",
+      "takeaway": "Without continuous ATP regeneration, muscle fibers cannot contract."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Sprints burn intramyofibrillar glycogen",
+      "question": "Which energy source runs out over ninety minutes of play?",
+      "tag": "VERIFIED",
+      "principle": "Repeated sprint bursts rapidly deplete glycogen stored inside specific microscopic pools in muscle fibers.",
+      "chain": [
+        "Fatigue comes from lactic acid build-up and heavy breathing",
+        "Muscle contractions require continuous ATP hydrolysis",
+        "Sprinting burns localized intramyofibrillar glycogen"
+      ],
+      "discarded": [
+        "Body fat stores running out during a match"
+      ],
+      "explanation": "Fat breakdown requires time and abundant oxygen, making it too slow for intense sprints. High-intensity bursts rely on glycogen stored inside the muscle fibers. These stores reach critically low levels after 70 to 90 minutes of intermittent sprinting.",
+      "takeaway": "High intensity burns stored muscle glycogen faster than the body replaces it."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Local fuel depletion starves calcium pumps",
+      "question": "Where inside the muscle cell does glycogen depletion hit hardest?",
+      "tag": "VERIFIED",
+      "principle": "The ATP-dependent pumps that move calcium ions rely directly on nearby intramyofibrillar glycogen stores.",
+      "chain": [
+        "Fatigue comes from lactic acid build-up and heavy breathing",
+        "Muscle contractions require continuous ATP hydrolysis",
+        "Sprinting burns localized intramyofibrillar glycogen",
+        "Depleted local glycogen starves calcium pumps"
+      ],
+      "discarded": [
+        "Fuel is evenly distributed throughout the muscle cell"
+      ],
+      "explanation": "Glycogen sits in distinct sub-cellular compartments. The intramyofibrillar pool directly powers the calcium pumps on the sarcoplasmic reticulum. When this specific pool runs out, the local pumps lose their fuel supply.",
+      "takeaway": "Fatigue begins in specific microscopic compartments inside muscle fibers."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Calcium failure stops cross-bridge force",
+      "question": "What physical mechanism stops the muscle from producing force?",
+      "tag": "ATOMIC",
+      "principle": "Without calcium release to expose binding sites, actin and myosin filaments cannot generate mechanical force.",
+      "chain": [
+        "Fatigue comes from lactic acid build-up and heavy breathing",
+        "Muscle contractions require continuous ATP hydrolysis",
+        "Sprinting burns localized intramyofibrillar glycogen",
+        "Depleted local glycogen starves calcium pumps",
+        "Unpumped calcium prevents muscle fiber cross-bridge force"
+      ],
+      "discarded": [],
+      "explanation": "Calcium release unlocks the physical binding sites between actin and myosin proteins inside a muscle fiber. When local glycogen depletion starves the calcium pumps, less calcium cycles through the cell per nervous system signal. The muscle filaments physically cannot bind and pull, reducing maximum power output.",
+      "takeaway": "Fatigue is the physical failure of calcium-driven muscle binding."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "Fast-twitch fiber failure",
+      "question": "How does this cellular failure manifest in a player's performance late in a match?",
+      "tag": "VERIFIED",
+      "principle": "As fast-twitch glycogen pools empty, explosive force generation fails while low-intensity aerobic jogging remains possible.",
+      "chain": [
+        "Fatigue comes from lactic acid build-up and heavy breathing",
+        "Muscle contractions require continuous ATP hydrolysis",
+        "Sprinting burns localized intramyofibrillar glycogen"
+      ],
+      "discarded": [],
+      "explanation": "Sprinting relies on fast-twitch muscle fibers, which deplete their internal glycogen pools first. Once these pools empty, those fibers fail to contract forcefully. The player can still jog using slow-twitch fibers powered by fat oxidation, but explosive acceleration becomes physically impossible.",
+      "takeaway": "Sprinting capability fails fiber by fiber as local fuel runs out."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Fatigue is fuel distribution failure",
+      "question": "What does understanding cellular fatigue change about performance?",
+      "tag": "VERIFIED",
+      "principle": "Late-game fatigue is not chemical poisoning; it is localized power starvation in fast-twitch fibers.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "An exhausted player is not poisoned by lactic acid accumulation. Their fast-twitch muscle fibers have emptied their local glycogen compartments, breaking the calcium loop required for fast contractions. Willpower cannot force a muscle cell to contract without calcium.",
+      "takeaway": "You cannot mentally force a muscle cell to contract without calcium."
+    }
+  ],
+  "followups": [
+    "Why do carbohydrate drinks consumed at halftime delay local glycogen depletion?",
+    "How does central nervous system fatigue interact with local calcium pump failure?",
+    "Why do fast-twitch muscle fibers deplete glycogen faster than slow-twitch fibers?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "what-actually-tires-a-player-out-over-ninety-minutes",
+    "sector": "football",
+    "model": "gemini-3.6-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

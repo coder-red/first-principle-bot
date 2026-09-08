@@ -1,0 +1,132 @@
+{
+  "topic": "Curved Free Kick Physics",
+  "question": "Why does a curved free kick curve in flight?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Curved Flight",
+      "question": "Why does a spinning soccer ball bend through the air instead of traveling in a straight line?",
+      "tag": "ASSUMPTION",
+      "principle": "Most people assume spin somehow screws the ball directly into the air or that curvature requires continuous steering.",
+      "chain": [],
+      "discarded": [
+        "The belief that spin acts like a screw gripping solid air",
+        "The assumption that gravity alone accounts for sideways motion"
+      ],
+      "explanation": "When hit off-center, a soccer ball spins while flying forward. In a vacuum, spin has zero effect on trajectory. In air, the curve happens reliably, meaning the interaction between the spinning surface and surrounding air is responsible.",
+      "takeaway": "Spin alone changes nothing; spin inside a fluid changes everything."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Asymmetric Force",
+      "question": "What changes in the surrounding air to push the ball sideways?",
+      "tag": "VERIFIED",
+      "principle": "A spinning ball alters airflow to create an unbalanced sideways force.",
+      "chain": [
+        "Spinning ball curves in flight",
+        "Air pushes unequally on opposite sides of the ball"
+      ],
+      "discarded": [
+        "Assuming air resistance acts equally across all sides of a spinning object"
+      ],
+      "explanation": "As the ball moves forward, air flows past both left and right sides. Because the ball is spinning, one side moves in the direction of the oncoming air, while the other side moves against it. This breaks symmetry in how air travels past the ball.",
+      "takeaway": "Rotation breaks the airflow symmetry around the ball."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Surface Friction",
+      "question": "How does spin change the air speed on opposite sides of the ball?",
+      "tag": "VERIFIED",
+      "principle": "Friction drags a boundary layer of air, speeding it up on one side and slowing it down on the other.",
+      "chain": [
+        "Spinning ball curves in flight",
+        "Air pushes unequally on opposite sides of the ball",
+        "Friction creates different air speeds on each side"
+      ],
+      "discarded": [
+        "Assuming air glides over the surface without drag"
+      ],
+      "explanation": "Air molecules stick slightly to the ball's surface. On the side spinning forward into oncoming air, surface friction collides with the airflow and slows it down. On the side spinning backward, friction pulls the air along, increasing its speed relative to the ball.",
+      "takeaway": "Surface drag creates a speed difference in the air."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Pressure Differential",
+      "question": "Why do differing air speeds alter the forces on the ball?",
+      "tag": "VERIFIED",
+      "principle": "Higher air velocity lowers local pressure, creating a pressure difference across the ball.",
+      "chain": [
+        "Spinning ball curves in flight",
+        "Air pushes unequally on opposite sides of the ball",
+        "Friction creates different air speeds on each side",
+        "Air speed differences cause a pressure difference"
+      ],
+      "discarded": [
+        "Assuming static air pressure remains uniform around moving fluids"
+      ],
+      "explanation": "Fluid dynamics dictates that as fluid speed increases, static pressure decreases. The side with faster relative air speed drops in pressure. The side with slower air speed maintains higher pressure, creating a net push toward the low-pressure side.",
+      "takeaway": "Faster air means lower pressure; the difference pushes the ball."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Perpendicular Acceleration",
+      "question": "Why does a sideways force cause a curved path rather than a sharp turn?",
+      "tag": "ATOMIC",
+      "principle": "A continuous force applied perpendicular to velocity causes continuous sideways acceleration, creating a smooth arc.",
+      "chain": [
+        "Spinning ball curves in flight",
+        "Air pushes unequally on opposite sides of the ball",
+        "Friction creates different air speeds on each side",
+        "Air speed differences cause a pressure difference",
+        "Perpendicular net force creates sideways acceleration"
+      ],
+      "discarded": [],
+      "explanation": "Newton's second law states force equals mass times acceleration. The constant pressure difference acts as a continuous force at right angles to forward velocity. Adding constant sideways acceleration to forward motion deflects the flight path moment by moment into a smooth curve.",
+      "takeaway": "A constant perpendicular push continuously redirects motion into a curve."
+    },
+    {
+      "phase": "rebuild",
+      "level": 1,
+      "title": "Reconstructing the Kick",
+      "question": "How do these bedrock forces combine during an actual kick?",
+      "tag": "VERIFIED",
+      "principle": "An off-center strike imparts spin and forward momentum, establishing the pressure gap that bends flight.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "Striking the ball off-center splits foot energy into forward speed and rotation. Air friction drags a boundary layer, creating high air speed on one flank and low air speed on the other. The resulting pressure imbalance generates a continuous sideways force, bending the path across the field.",
+      "takeaway": "Off-center impact creates spin, spin splits air pressure, pressure bends flight."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "The Late Bend Phenomenon",
+      "question": "Why does a free kick seem to bend much harder near the end of its flight?",
+      "tag": "VERIFIED",
+      "principle": "Curvature sharpens late in flight because forward speed drops faster than rotational speed.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "Air resistance slows forward motion quickly, but rotational energy decays much slower. As forward velocity decreases, the ratio of sideways force to forward momentum increases. The ball deflects sideways more per meter traveled, producing a sudden severe curve right before reaching the goal.",
+      "takeaway": "The late sharp hook happens because forward speed dies before spin does."
+    }
+  ],
+  "followups": [
+    "Why does a non-spinning soccer ball knuckle unpredictably through the air?",
+    "How does high altitude or humidity change the magnitude of a ball's curve?",
+    "Why do dimples on a golf ball change the aerodynamic pressure force compared to a smooth ball?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-does-a-curved-free-kick-curve",
+    "sector": "football",
+    "model": "gemini-3.6-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

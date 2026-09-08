@@ -1,0 +1,131 @@
+{
+  "topic": "Computer Binary Addition",
+  "question": "How does a computer actually add two numbers?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Apparent Complexity of Addition",
+      "question": "What is the fundamental process of computer addition?",
+      "tag": "CONVENTION",
+      "principle": "Many assume computer addition is a complex mathematical operation, but it is a series of simple physical events.",
+      "chain": [
+        "Computer adds numbers"
+      ],
+      "discarded": [
+        "The idea that computer addition is fundamentally different from other mathematical operations, or that it involves abstract 'thinking'."
+      ],
+      "explanation": "Humans learn addition as a complex process involving memorization and rules. We often project this complexity onto computers. However, a computer's operations are purely physical interactions.",
+      "takeaway": "Computer addition is not 'math' in the human sense."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Binary Bit-by-Bit Addition",
+      "question": "How does a computer represent and combine numbers for addition?",
+      "tag": "VERIFIED",
+      "principle": "A computer adds numbers by performing binary addition, combining individual bits (0s and 1s) and handling 'carries' just like decimal addition.",
+      "chain": [
+        "Computer adds numbers",
+        "Binary addition, bit by bit"
+      ],
+      "discarded": [],
+      "explanation": "Numbers are represented as sequences of binary digits (bits), where each bit is either 0 or 1. Addition proceeds one bit position at a time, from right to left, generating a sum bit and a 'carry' bit to the next position.",
+      "takeaway": "Addition is a series of simple binary operations."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Logic Gates for Sum and Carry",
+      "question": "What physical components perform the bit-level binary addition?",
+      "tag": "VERIFIED",
+      "principle": "The rules for binary addition (sum and carry) are implemented by arrangements of fundamental electronic components called logic gates.",
+      "chain": [
+        "Computer adds numbers",
+        "Binary addition, bit by bit",
+        "Logic gates combine bits for sum/carry"
+      ],
+      "discarded": [],
+      "explanation": "For any two input bits and a 'carry-in' bit, there are specific rules for the resulting sum bit and 'carry-out' bit. These rules can be precisely replicated by combinations of logic gates like XOR (for sum) and AND/OR (for carry).",
+      "takeaway": "Logic gates execute binary addition rules."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Transistors Form Logic Gates",
+      "question": "What are logic gates made of?",
+      "tag": "VERIFIED",
+      "principle": "Logic gates are constructed from transistors, which act as electrically controlled switches.",
+      "chain": [
+        "Computer adds numbers",
+        "Binary addition, bit by bit",
+        "Logic gates combine bits for sum/carry",
+        "Logic gates built from transistors"
+      ],
+      "discarded": [],
+      "explanation": "Each logic gate (like AND, OR, XOR) is a circuit composed of a few transistors. These transistors are arranged to produce a specific output voltage (representing 0 or 1) based on the input voltages.",
+      "takeaway": "Logic gates are circuits of switches."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Semiconductor Switching",
+      "question": "What is the most fundamental physical principle enabling a transistor to work?",
+      "tag": "ATOMIC",
+      "principle": "The physical property of semiconductor materials allows a transistor to switch between conductive and non-conductive states based on an applied input voltage.",
+      "chain": [
+        "Computer adds numbers",
+        "Binary addition, bit by bit",
+        "Logic gates combine bits for sum/carry",
+        "Logic gates built from transistors",
+        "Transistors switch via semiconductor physics"
+      ],
+      "discarded": [],
+      "explanation": "A transistor is a semiconductor device that can either block or allow the flow of electrical current. A small voltage applied to one part of the transistor controls this switching action, effectively turning the current 'on' or 'off'. These on/off states represent the binary 1 and 0.",
+      "takeaway": "Electricity controls current flow."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "Adders from Logic Gates",
+      "question": "How do these switches combine to perform addition?",
+      "tag": "VERIFIED",
+      "principle": "Transistors are arranged into logic gates, which are then combined into 'adder' circuits that perform the sum and carry operations for binary digits.",
+      "chain": [
+        "Computer adds numbers",
+        "Binary addition, bit by bit",
+        "Logic gates combine bits for sum/carry"
+      ],
+      "discarded": [],
+      "explanation": "A 'half-adder' uses a few logic gates to add two bits, producing a sum and a carry. A 'full-adder' adds two bits plus an incoming carry. By chaining many full-adders together, a computer can add numbers of any length, bit by bit.",
+      "takeaway": "Chained adders perform multi-bit sums."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Emergent Complexity from Simplicity",
+      "question": "What does this decomposition reveal about computation?",
+      "tag": "ATOMIC",
+      "principle": "The complex mathematical operation of addition emerges entirely from the collective action of billions of simple electrical switches following basic physical laws.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "There is no 'magic' or abstract mathematical reasoning happening inside a computer. Its ability to 'add' is an emergent property of vast numbers of transistors switching on and off in precise, designed sequences. The entire process is purely physical, from the representation of numbers as voltages to the final output.",
+      "takeaway": "Computation is organized switching."
+    }
+  ],
+  "followups": [
+    "How does a computer 'remember' numbers?",
+    "How does a computer perform multiplication?",
+    "What physical limits restrict how fast a transistor can switch?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "how-does-a-computer-actually-add-two-numbers",
+    "sector": "technology",
+    "model": "gemini-2.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

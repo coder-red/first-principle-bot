@@ -1,0 +1,131 @@
+{
+  "topic": "Electricity Flow",
+  "question": "What is actually moving when electricity flows?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Flow of Electricity",
+      "question": "What physical entity travels when electricity flows?",
+      "tag": "CONVENTION",
+      "principle": "Many assume electricity involves a single 'thing' or substance traveling from one end of a circuit to the other.",
+      "chain": [
+        "Electricity flows"
+      ],
+      "discarded": [
+        "The idea that a single 'thing' travels the entire circuit"
+      ],
+      "explanation": "When we speak of electricity 'flowing,' it evokes an image of something moving continuously, like water in a pipe. This leads to the intuitive but often incorrect assumption that the same physical matter travels the entire distance from source to destination.",
+      "takeaway": "Electricity is not a single traveling substance."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Electricity is Charge Movement",
+      "question": "If not a substance, what is 'flowing'?",
+      "tag": "VERIFIED",
+      "principle": "Electricity, specifically electric current, is the directed movement of electric charge.",
+      "chain": [
+        "Electricity flows",
+        "Electricity is directed charge flow"
+      ],
+      "discarded": [],
+      "explanation": "The fundamental definition of electric current is the net rate of flow of electric charge through a cross-sectional area. It's not about a 'thing' but a property: charge. This directed movement is what constitutes the 'flow' we observe.",
+      "takeaway": "Current is the flow of charge."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Charge is a Particle Property",
+      "question": "What is electric charge, and what carries it?",
+      "tag": "VERIFIED",
+      "principle": "Electric charge is an intrinsic property of certain subatomic particles, not an independent entity.",
+      "chain": [
+        "Electricity flows",
+        "Electricity is directed charge flow",
+        "Charge is particle property"
+      ],
+      "discarded": [],
+      "explanation": "Charge is not something that exists on its own; it's a fundamental characteristic of particles like protons and electrons. Protons carry a positive charge, and electrons carry a negative charge. These particles are the carriers of charge.",
+      "takeaway": "Particles carry electric charge."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Electrons are the Movers in Conductors",
+      "question": "Which specific particles move to create current in common electrical wires?",
+      "tag": "VERIFIED",
+      "principle": "In typical metallic conductors, the particles that move to create electric current are electrons.",
+      "chain": [
+        "Electricity flows",
+        "Electricity is directed charge flow",
+        "Charge is particle property",
+        "Electrons are the moving particles"
+      ],
+      "discarded": [],
+      "explanation": "While both positive and negative charges exist, in solid metal wires, the atomic nuclei (containing protons) are fixed in a crystal lattice. Only the negatively charged electrons are free to move. These 'free electrons' are responsible for conducting electricity.",
+      "takeaway": "Electrons move in wires."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Electrons Drift Under Force",
+      "question": "What allows electrons to move and how do they do it?",
+      "tag": "ATOMIC",
+      "principle": "Electrons are fundamental particles with a negative charge, loosely bound in conductors, allowing them to drift under the influence of an electric field.",
+      "chain": [
+        "Electricity flows",
+        "Electricity is directed charge flow",
+        "Charge is particle property",
+        "Electrons are the moving particles",
+        "Electrons are fundamental, loosely bound, drift"
+      ],
+      "discarded": [],
+      "explanation": "Electrons are elementary particles. In conductive materials, some electrons are not tightly bound to individual atoms and can move freely throughout the material. An applied electric field exerts a force on these charged electrons, causing them to accelerate and then collide with atoms, resulting in a net 'drift' in one direction.",
+      "takeaway": "Free electrons drift in an electric field."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "Collective Electron Drift is Current",
+      "question": "How does electron drift create electricity?",
+      "tag": "VERIFIED",
+      "principle": "An applied electric field causes the loosely bound electrons in a conductor to undergo a collective, directed drift, which constitutes the flow of electric charge, or current.",
+      "chain": [
+        "Electrons are fundamental, loosely bound, drift",
+        "Electrons are the moving particles",
+        "Electricity is directed charge flow"
+      ],
+      "discarded": [],
+      "explanation": "When a voltage is applied across a conductor, it creates an electric field. This field pushes the free electrons, causing them to move, or 'drift,' in a particular direction. This continuous, directed movement of countless individual electrons is the macroscopic phenomenon we call electric current.",
+      "takeaway": "Electricity is the collective drift of electrons."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Energy Travels, Not Electrons",
+      "question": "What does this reveal about the nature of electricity?",
+      "tag": "",
+      "principle": "The energy of an electrical signal propagates at nearly the speed of light, while the individual electrons themselves drift very slowly.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "Understanding that electricity is the collective drift of electrons, rather than a single electron traveling the entire path, clarifies a key distinction. The electrical energy, or signal, propagates as an electromagnetic wave through the conductor at high speed. The actual electrons, however, only drift at speeds typically measured in millimeters per second, transferring energy through a chain reaction of pushes and pulls.",
+      "takeaway": "Energy propagates fast; electrons drift slow."
+    }
+  ],
+  "followups": [
+    "What causes an electric field to form?",
+    "How does electricity flow in non-metallic conductors, like salt water?",
+    "If electrons move so slowly, how does a light turn on instantly?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "what-is-actually-moving-when-electricity-flows",
+    "sector": "technology",
+    "model": "gemini-2.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

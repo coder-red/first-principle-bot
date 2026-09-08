@@ -6,17 +6,18 @@ Old path (request_deck + attempt_repair + fallback) remains untouched.
 
 import asyncio
 import json
-import os
-from typing import List, Optional
+from typing import Optional
 
-from fpb.config import DECK_MAX_TOKENS, DECK_TIMEOUT_SECONDS, get_config
+from fpb.config import DECK_TIMEOUT_SECONDS
 from fpb.telemetry import COUNTERS, LOG
 from fpb.plan import Plan, PlanCard, expand_plan_to_deck, build_plan_prompt
 
 
-async def generate_plan(client, model: str, messages: List[dict], max_tokens: int) -> dict:
-    """Call the LLM with the compact Plan prompt and return the parsed Plan dict."""
-    cfg = get_config()
+async def generate_plan(client, model: str, question: str, max_tokens: int) -> dict:
+    """Call the LLM with the compact Plan prompt and return the parsed Plan dict.
+
+    `question` is the reader's actual question, not a prompt-instruction string.
+    """
     system = (
         "You output ONLY the JSON object described in the user prompt. "
         "No markdown, no explanation, no extra fields. "
@@ -24,7 +25,7 @@ async def generate_plan(client, model: str, messages: List[dict], max_tokens: in
     )
 
     # Build compact plan prompt (much shorter than the full deck prompt)
-    user = build_plan_prompt(messages[-1]["content"])
+    user = build_plan_prompt(question)
 
     resp = await asyncio.wait_for(
         client.chat.completions.create(
@@ -51,20 +52,25 @@ async def generate_plan(client, model: str, messages: List[dict], max_tokens: in
 async def attempt_plan_expand(
     client,
     model: str,
-    messages: List[dict],
+    question: str,
     max_tokens: int,
 ) -> dict:
     """Fast path: one LLM call → Plan → deterministic Deck expansion.
 
     Returns a normalized, verified deck dict ready to serve.
     On any error, raises so caller can fall back to old path.
+
+    `question` is the reader's actual question (from ChatRequest.message). The
+    full-message list from `build_messages` ends with a "Build the deck now..."
+    instruction, so it must not be used as the question — that would decompose
+    the instruction instead of what the reader asked.
     """
-    plan_data = await generate_plan(client, model, messages, max_tokens)
+    plan_data = await generate_plan(client, model, question, max_tokens)
 
     # Build Plan object (validate structure)
     plan = Plan(
         topic=plan_data.get("topic", "Untitled"),
-        question=plan_data.get("question", messages[-1]["content"]),
+        question=plan_data.get("question", question),
         descent_depth=int(plan_data.get("descent_depth", 3)),
         cards=[
             PlanCard(

@@ -71,6 +71,10 @@ class Library:
     def deck(self, slug: str) -> Optional[dict]:
         return self._decks.get(slug)
 
+    def decks(self) -> List[dict]:
+        """Every loaded deck, in slug order (used by the instant matcher)."""
+        return list(self._decks.values())
+
 
 def save_deck(root: str, question: str, sector: str, deck: dict,
               model: str, generated_at: str) -> Optional[str]:

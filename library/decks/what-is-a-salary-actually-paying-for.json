@@ -1,0 +1,141 @@
+{
+  "topic": "The Economics of Salary",
+  "question": "What is a salary actually paying for?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Surface Assumption",
+      "question": "Is a salary paying for the work you complete?",
+      "tag": "ASSUMPTION",
+      "principle": "People assume a salary pays directly for output produced or exact hours logged.",
+      "chain": [
+        "Salary pays for completed work output"
+      ],
+      "discarded": [
+        "Salary equals amount of work produced",
+        "Salary equals precise count of hours worked"
+      ],
+      "explanation": "Most workers assume their paycheck directly reflects the volume of work they deliver or the precise minutes they sit at a desk. But salaried employees receive the same income whether output varies or tasks take less time.",
+      "takeaway": "Fixed pay disconnects money from immediate output."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "The Shift in Financial Risk",
+      "question": "Why doesn't a salary fluctuate when output fluctuates?",
+      "tag": "VERIFIED",
+      "principle": "A salary transfers the business risk of output variance from the worker to the employer.",
+      "chain": [
+        "Salary pays for completed work output",
+        "Salary is a risk-absorbing contract that decouples pay from immediate output"
+      ],
+      "discarded": [
+        "Employer pays only when value is produced"
+      ],
+      "explanation": "In piece-rate labor, you get paid per item made; if the market fails or raw materials are missing, you earn zero. A salary guarantees income regardless of short-term business results, shifting market and operational risks to the employer.",
+      "takeaway": "Salary buys stability for the worker and absorbs output risk for the firm."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "The Purchase of Availability",
+      "question": "If not paying per task, what is the contract securing?",
+      "tag": "VERIFIED",
+      "principle": "A salary purchases readiness and exclusive priority over a worker's functional capacity.",
+      "chain": [
+        "Salary pays for completed work output",
+        "Salary is a risk-absorbing contract that decouples pay from immediate output",
+        "Salary secures exclusive availability and priority of labor capacity"
+      ],
+      "discarded": [
+        "Salary purchases finished physical goods or discrete services"
+      ],
+      "explanation": "Because output cannot be guaranteed hour-by-hour, the contract secures the right to direct your problem-solving capacity when needed. You are paid to be available, capable, and responsive within agreed boundaries.",
+      "takeaway": "You are paid to be ready and responsive, not just active."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "The Trade of Autonomy",
+      "question": "What must a worker give up to grant exclusive availability?",
+      "tag": "VERIFIED",
+      "principle": "Availability requires surrendering individual direction over personal time and agency.",
+      "chain": [
+        "Salary pays for completed work output",
+        "Salary is a risk-absorbing contract that decouples pay from immediate output",
+        "Salary secures exclusive availability and priority of labor capacity",
+        "Availability requires surrendering direction of conscious agency"
+      ],
+      "discarded": [
+        "Labor can be rented without surrendering personal autonomy"
+      ],
+      "explanation": "Human labor capacity cannot be detached from the living person. Granting an employer the right to direct your capacity means surrendering your personal autonomy and decision-making control during those hours.",
+      "takeaway": "Giving up control of your actions is the price of availability."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Finite Time and Exclusivity",
+      "question": "What is the ultimate limit that makes human capacity scarce?",
+      "tag": "ATOMIC",
+      "principle": "Human lifetime and attention are strictly finite and non-shareable.",
+      "chain": [
+        "Salary pays for completed work output",
+        "Salary is a risk-absorbing contract that decouples pay from immediate output",
+        "Salary secures exclusive availability and priority of labor capacity",
+        "Availability requires surrendering direction of conscious agency",
+        "Human lifetime and conscious focus are strictly finite and exclusive"
+      ],
+      "discarded": [
+        "Time and attention can be duplicated or recovered"
+      ],
+      "explanation": "You cannot spend the same hour or focus the same brain on two different employers simultaneously. Because conscious human life is strictly finite, allocating a block of it to one employer creates an absolute opportunity cost: that portion of your life cannot be spent anywhere else.",
+      "takeaway": "Salary is compensation for the unrecoverable expenditure of finite life."
+    },
+    {
+      "phase": "rebuild",
+      "level": 1,
+      "title": "The Core Exchange Rebuilt",
+      "question": "How do finite life, risk transfer, and availability construct a salary?",
+      "tag": "VERIFIED",
+      "principle": "A salary is a rental fee for exclusive control over a block of your finite lifetime capacity.",
+      "chain": [
+        "Human lifetime and conscious focus are strictly finite and exclusive",
+        "Salary is a rental fee for temporary exclusive control over human capacity"
+      ],
+      "discarded": [],
+      "explanation": "Rebuilding from bedrock, a salary is an agreement where you trade the opportunity cost of your finite life and personal autonomy in exchange for guaranteed income. The employer gets exclusive access to your problem-solving capacity and takes on the risk of turning that capacity into profit.",
+      "takeaway": "A salary rents your capacity and buys out your alternative options."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "The Illusion of Effort",
+      "question": "What does this reveal about compensation and career leverage?",
+      "tag": "VERIFIED",
+      "principle": "High salaries reflect the rarity of the capacity secured, not the volume of effort exerted.",
+      "chain": [
+        "Salary is a rental fee for temporary exclusive control over human capacity"
+      ],
+      "discarded": [],
+      "explanation": "Understanding salary as a capacity rental explains why hard work alone does not raise pay. Employers pay high salaries when the specific capacity they need to control is scarce and difficult to replace, not because you spent more effort. To increase your salary, you must increase the scarcity or impact of the capacity you hold back from the market.",
+      "takeaway": "You are paid for the scarcity of the capacity you lease out, not the exertion you feel."
+    }
+  ],
+  "followups": [
+    "Why do salaried contracts enforce non-compete and exclusivity clauses?",
+    "What structural economic factors determine the boundary between salaried employment and freelance contracting?",
+    "How does automation alter the value of human labor capacity versus human opportunity cost?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "what-is-a-salary-actually-paying-for",
+    "sector": "career",
+    "model": "gemini-3.6-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

@@ -1,0 +1,166 @@
+{
+  "topic": "Heat",
+  "question": "What is heat?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "Heat as a 'thing'",
+      "question": "What is the common understanding of heat?",
+      "tag": "CONVENTION",
+      "principle": "Most people perceive heat as a distinct 'thing' or substance that makes objects feel warm.",
+      "chain": [
+        "Heat makes objects hot"
+      ],
+      "discarded": [
+        "Heat is a substance",
+        "Cold is a distinct entity"
+      ],
+      "explanation": "We often speak of 'adding heat' or 'losing heat' as if it were a measurable fluid. This everyday language treats heat as a tangible entity that can flow into or out of objects, causing them to warm or cool.",
+      "takeaway": "Heat is commonly seen as a 'warmth substance'."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Heat is Energy Transfer",
+      "question": "If not a substance, what is heat?",
+      "tag": "VERIFIED",
+      "principle": "Heat is the transfer of energy from one system to another due to a temperature difference.",
+      "chain": [
+        "Heat makes objects hot",
+        "Heat is energy transfer"
+      ],
+      "discarded": [],
+      "explanation": "Scientific observation shows that when an object 'gets hot', it has received energy, not a substance. This energy transfer happens spontaneously from regions of higher temperature to regions of lower temperature.",
+      "takeaway": "Heat is energy moving, not a thing itself."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Transferred Energy is Thermal Energy",
+      "question": "What specific type of energy is being transferred as heat?",
+      "tag": "VERIFIED",
+      "principle": "The energy transferred as heat is a form of internal energy called thermal energy.",
+      "chain": [
+        "Heat makes objects hot",
+        "Heat is energy transfer",
+        "Transferred energy is thermal energy"
+      ],
+      "discarded": [],
+      "explanation": "Energy can exist in many forms, like chemical or electrical. When we talk about heat, we are specifically referring to the transfer of the energy associated with the microscopic state of a system, known as thermal energy.",
+      "takeaway": "Heat moves thermal energy."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Thermal Energy is Particle Kinetic Energy",
+      "question": "What is thermal energy composed of at a fundamental level?",
+      "tag": "VERIFIED",
+      "principle": "Thermal energy is the total kinetic energy of the microscopic particles (atoms and molecules) within a substance.",
+      "chain": [
+        "Heat makes objects hot",
+        "Heat is energy transfer",
+        "Transferred energy is thermal energy",
+        "Thermal energy is particle kinetic energy"
+      ],
+      "discarded": [],
+      "explanation": "All matter is composed of particles in constant, random motion. These particles possess kinetic energy due to their movement. The sum of these individual kinetic energies within a system constitutes its internal thermal energy.",
+      "takeaway": "Thermal energy is the sum of jiggling particles."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Matter Particles are Always Moving",
+      "question": "What is the fundamental basis for particles having kinetic energy?",
+      "tag": "ATOMIC",
+      "principle": "Matter is composed of particles that are in continuous, random motion, inherently possessing kinetic energy.",
+      "chain": [
+        "Heat makes objects hot",
+        "Heat is energy transfer",
+        "Transferred energy is thermal energy",
+        "Thermal energy is particle kinetic energy",
+        "Matter particles are always moving"
+      ],
+      "discarded": [],
+      "explanation": "The existence of atoms and molecules is experimentally confirmed. Their constant motion, even in seemingly static solids, is a fundamental property of matter. This inherent motion means they inherently possess kinetic energy, which is the energy of motion.",
+      "takeaway": "All matter is constantly vibrating at its core."
+    },
+    {
+      "phase": "rebuild",
+      "level": 3,
+      "title": "Particle Motion Creates Thermal Energy",
+      "question": "How does particle motion lead to thermal energy?",
+      "tag": "VERIFIED",
+      "principle": "The collective kinetic energy of a substance's constituent particles defines its internal thermal energy.",
+      "chain": [
+        "Heat makes objects hot",
+        "Heat is energy transfer",
+        "Transferred energy is thermal energy",
+        "Thermal energy is particle kinetic energy"
+      ],
+      "discarded": [],
+      "explanation": "Each atom or molecule within a material moves, vibrates, or rotates, carrying kinetic energy. While individual particle energies vary, their sum represents the total thermal energy stored within that material. A higher average kinetic energy corresponds to a higher temperature.",
+      "takeaway": "Thermal energy is the total energy of microscopic movement."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "Heat is the Transfer of This Energy",
+      "question": "How does thermal energy relate to heat?",
+      "tag": "VERIFIED",
+      "principle": "Heat is the process by which this internal thermal energy is transferred from one system to another.",
+      "chain": [
+        "Heat makes objects hot",
+        "Heat is energy transfer",
+        "Transferred energy is thermal energy"
+      ],
+      "discarded": [],
+      "explanation": "When a hotter object touches a colder one, or radiates energy, the faster-moving particles in the hotter object transfer some of their kinetic energy to the slower-moving particles in the colder object. This energy in transit, driven by a temperature difference, is what we call heat.",
+      "takeaway": "Heat is thermal energy in transit."
+    },
+    {
+      "phase": "rebuild",
+      "level": 1,
+      "title": "Heat Makes Objects Hot",
+      "question": "What is the observable effect of heat?",
+      "tag": "VERIFIED",
+      "principle": "The transfer of thermal energy (heat) causes a change in the receiving object's internal thermal energy, which we perceive as a change in temperature or 'hotness'.",
+      "chain": [
+        "Heat makes objects hot",
+        "Heat is energy transfer"
+      ],
+      "discarded": [],
+      "explanation": "When an object absorbs heat, its particles gain kinetic energy, increasing its total thermal energy. This increase in average particle kinetic energy is what we measure as a rise in temperature, making the object feel hotter.",
+      "takeaway": "Heat changes an object's internal energy and temperature."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Heat: A Process, Not a Substance",
+      "question": "What is the core insight about heat?",
+      "tag": "ATOMIC",
+      "principle": "Heat is not a substance contained within an object, but rather the dynamic process of thermal energy transfer between objects.",
+      "chain": [],
+      "discarded": [
+        "Heat as a 'warmth substance'"
+      ],
+      "explanation": "Discarding the idea of heat as a 'thing' reveals it as a description of energy flowing. Objects don't 'contain heat'; they possess internal thermal energy. Heat is the mechanism by which this internal energy moves from one place to another, driven by differences in particle kinetic energy.",
+      "takeaway": "Heat is a verb, not a noun."
+    }
+  ],
+  "followups": [
+    "What is temperature, and how does it differ from heat?",
+    "How do the three modes of heat transfer (conduction, convection, radiation) work at a particle level?",
+    "What happens to particle motion at absolute zero?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "what-is-heat",
+    "sector": "physics",
+    "model": "gemini-2.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

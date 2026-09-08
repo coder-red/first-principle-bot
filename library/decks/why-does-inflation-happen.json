@@ -1,0 +1,139 @@
+{
+  "topic": "The Mechanics of Inflation",
+  "question": "Why do goods and services get more expensive over time?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Rising Cost of Living",
+      "question": "Why do goods and services get more expensive over time?",
+      "tag": "CONVENTION",
+      "principle": "We assume inflation is a natural, inevitable feature of a growing economy.",
+      "chain": [
+        "Prices rise over time"
+      ],
+      "discarded": [
+        "The belief that price increases are driven primarily by corporate greed or resource scarcity."
+      ],
+      "explanation": "We are taught that mild inflation is healthy and normal. When prices spike, we blame supply chains or greedy corporations. This treats the symptom as the cause, ignoring why the purchasing power of money falls continuously over decades.",
+      "takeaway": "Rising prices are a symptom of a deeper systemic force."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "The Price Equation",
+      "question": "What does a price actually measure?",
+      "tag": "VERIFIED",
+      "principle": "A price is a mathematical ratio between units of currency and units of goods.",
+      "chain": [
+        "Prices rise over time",
+        "Prices are ratios of money to goods"
+      ],
+      "discarded": [
+        "The assumption that goods have an intrinsic monetary value."
+      ],
+      "explanation": "A price is not an inherent property of an object. It is a fraction: the number of currency units divided by the available goods. For prices to rise generally, either the supply of goods must shrink or the supply of currency units must expand.",
+      "takeaway": "To change all prices at once, you must change the money side of the ratio."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "The Currency Expansion",
+      "question": "Why does the money side of the ratio change faster than the goods side?",
+      "tag": "VERIFIED",
+      "principle": "The supply of currency units is expanded faster than the physical production of goods.",
+      "chain": [
+        "Prices rise over time",
+        "Prices are ratios of money to goods",
+        "Money supply grows faster than goods"
+      ],
+      "discarded": [
+        "The idea that inflation is caused by a physical shortage of goods."
+      ],
+      "explanation": "Industrial and technological progress makes goods easier and cheaper to produce over time. In a system with a fixed money supply, prices would naturally fall. General inflation only occurs because the supply of currency units is artificially expanded faster than physical output.",
+      "takeaway": "Inflation is an expansion of the currency supply, not a contraction of physical goods."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "The Debt Origin of Money",
+      "question": "How is this excess currency introduced into the economy?",
+      "tag": "VERIFIED",
+      "principle": "Modern currency is created as interest-bearing debt by commercial and central banks.",
+      "chain": [
+        "Prices rise over time",
+        "Prices are ratios of money to goods",
+        "Money supply grows faster than goods",
+        "Money is created as interest-bearing debt"
+      ],
+      "discarded": [
+        "The belief that governments print physical money to pay for all their expenses."
+      ],
+      "explanation": "Most money does not exist as physical cash. It is created digitally when banks issue loans. Because these loans must be repaid with interest, the system requires a constant stream of new loans to prevent widespread defaults.",
+      "takeaway": "Our currency supply is tied directly to the expansion of debt."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "The Mathematical Imperative",
+      "question": "Why must the debt-based currency supply expand forever?",
+      "tag": "ATOMIC",
+      "principle": "A closed ledger system based on interest-bearing debt requires exponential unit growth to avoid systemic default.",
+      "chain": [
+        "Prices rise over time",
+        "Prices are ratios of money to goods",
+        "Money supply grows faster than goods",
+        "Money is created as interest-bearing debt",
+        "Interest-bearing debt ledgers require exponential unit growth"
+      ],
+      "discarded": [
+        "The assumption that a debt-based monetary system can achieve stable zero-inflation."
+      ],
+      "explanation": "When a bank creates 100 dollars of principal but demands 105 dollars in repayment, the extra 5 dollars of interest does not exist in the economy. The only way for borrowers to avoid default is for banks to issue new loans to create those extra dollars. This mathematical loop forces the currency supply to expand indefinitely.",
+      "takeaway": "Interest-bearing debt makes currency expansion a mathematical necessity."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "The Dilution Effect",
+      "question": "How does this mathematical expansion translate to higher prices for consumers?",
+      "tag": "VERIFIED",
+      "principle": "Newly created currency units dilute the purchasing power of existing units as they circulate.",
+      "chain": [
+        "Interest-bearing debt ledgers require exponential unit growth",
+        "Money supply grows faster than goods",
+        "Prices rise over time"
+      ],
+      "discarded": [],
+      "explanation": "New currency enters the economy at specific points, such as bank loans or government spending. The first spenders use this money before prices adjust. As the new units spread through the economy, they bid up the prices of assets and goods, reducing the purchasing power of everyone else.",
+      "takeaway": "Inflation is the uneven dilution of currency value."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "The Silent Default",
+      "question": "What is the ultimate function of inflation in a debt-based economy?",
+      "tag": "VERIFIED",
+      "principle": "Inflation acts as a hidden wealth transfer that devalues debt at the expense of savers.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "When debts become too large to repay in real terms, inflation reduces the real value of those debts. Debtors, including governments, pay back their obligations in cheaper currency units. This prevents nominal bankruptcy but quietly transfers the loss to anyone holding cash or fixed incomes.",
+      "takeaway": "Inflation is a soft default on systemic debt."
+    }
+  ],
+  "followups": [
+    "How does a society transition away from a debt-based currency system without economic collapse?",
+    "Why do central banks target a positive inflation rate instead of absolute price stability?",
+    "What happens to wealth distribution when the rate of money creation outpaces productivity?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-does-inflation-happen",
+    "sector": "money",
+    "model": "gemini-3.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

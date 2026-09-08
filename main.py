@@ -69,6 +69,7 @@ from fpb.providers import (
     get_client,
     should_cool_down,
 )
+from fpb.retrieve import find_library_match
 from fpb.sample import SAMPLE_DECK
 from fpb.store import open_store
 from fpb.schemas import ChatRequest, Focus, build_messages, focus_instruction
@@ -268,11 +269,42 @@ def _serve(deck: dict, req: ChatRequest, provider: dict) -> dict:
     return finalize(deck, req)
 
 
+def _flag(name: str, default: str = "1") -> bool:
+    """An env feature flag that is on unless explicitly switched off."""
+    return os.environ.get(name, default).strip() not in ("0", "false", "False")
+
+
+def instant_lookup_enabled() -> bool:
+    """Serve a matching reviewed library deck before any model call."""
+    return _flag("INSTANT_LOOKUP")
+
+
+def plan_expand_enabled() -> bool:
+    """One small plan call + deterministic expansion instead of the full stream."""
+    return _flag("USE_PLAN_EXPAND")
+
+
+def _serve_library(deck: dict, req: ChatRequest) -> dict:
+    """A library hit costs nothing and carries its reviewed provenance.
+
+    The copy matters: the match is the shared cached object, and `finalize`
+    may flip `reframed` on what it is given — without the copy one request
+    could rewrite the deck for every request after it.
+    """
+    COUNTERS.bump("deck.library.instant")
+    LOG.info("library instant hit: %s", deck.get("meta", {}).get("slug", "?"))
+    return _serve(dict(deck), req, {"name": "library", "model": "reviewed"})
+
+
 @app.post("/api/chat")
 async def chat(req: ChatRequest, request: Request):
     require_access(request)
     enforce(DECK_LIMITER, request)
     providers = get_providers()
+
+    match = find_library_match(req.message, LIBRARY) if instant_lookup_enabled() else None
+    if match:
+        return json_response(_serve_library(match, req))
 
     if not providers:
         return json_response(make_error_deck(req.message, NO_PROVIDER_MESSAGE))
@@ -280,13 +312,13 @@ async def chat(req: ChatRequest, request: Request):
     messages = build_messages(req)
 
     # Fast path: Plan → deterministic Deck expansion (no validator, no repair, no fallback).
-    # DISABLED BY DEFAULT due to prompt quality issues. Enable via USE_PLAN_EXPAND=1.
-    if os.environ.get("USE_PLAN_EXPAND", "").strip() in ("1", "true", "True"):
+    # One small call wins over the full streaming contract; disable with USE_PLAN_EXPAND=0.
+    if plan_expand_enabled():
         for provider in PROVIDER_POOL.order(providers):
             client = get_client(provider["api_key"], provider["endpoint"])
             model = provider["model"]
             try:
-                deck = await attempt_plan_expand(client, model, messages,
+                deck = await attempt_plan_expand(client, model, req.message,
                                                  provider["max_tokens"])
                 return json_response(_serve(deck, req, provider))
             except Exception as exc:
@@ -492,7 +524,13 @@ def _ndjson(payload: dict) -> str:
 
 async def stream_cards(client: AsyncOpenAI, model: str, messages: List[dict],
                        max_tokens: Optional[int] = None):
-    """Yield ("card", card) as each one closes, then ("raw", full_text)."""
+    """Yield ("card", card) as each one closes, then ("raw", full_text).
+
+    If the stream is cut off by the token budget (finish_reason="length"), the
+    deck rendered from it would be silent — it looks complete but its tail is
+    missing. Flight the flag through as an `EmptyCompletion` so the caller's
+    normal error path explains it, exactly as the non-streaming path does.
+    """
     stream = await client.chat.completions.create(
         model=model,
         messages=messages,
@@ -503,11 +541,15 @@ async def stream_cards(client: AsyncOpenAI, model: str, messages: List[dict],
         timeout=DECK_TIMEOUT_SECONDS,
     )
 
-    accumulated, sent = "", 0
+    accumulated, sent, trunc = "", 0, False
     async for chunk in stream:
         choices = getattr(chunk, "choices", None)
         if not choices:
             continue
+        # The final chunk carries the aggregate finish reason.
+        finish = getattr(choices[0], "finish_reason", None)
+        if finish == "length":
+            trunc = True
         delta = getattr(choices[0], "delta", None)
         piece = getattr(delta, "content", None) if delta is not None else None
         if not piece:
@@ -519,6 +561,12 @@ async def stream_cards(client: AsyncOpenAI, model: str, messages: List[dict],
             yield "card", cards[sent]
             sent += 1
 
+    if trunc:
+        hint = model_failure_hint(model, getattr(stream, "model", None), "length")
+        raise EmptyCompletion(
+            (f"{model} was cut off before it finished the deck. " + hint).strip()
+        )
+
     yield "raw", accumulated
 
 
@@ -529,6 +577,11 @@ async def chat_stream(req: ChatRequest, request: Request):
     providers = get_providers()
 
     async def emit():
+        match = find_library_match(req.message, LIBRARY) if instant_lookup_enabled() else None
+        if match:
+            yield _ndjson({"type": "done", "deck": _serve_library(match, req)})
+            return
+
         if not providers:
             yield _ndjson({"type": "done",
                            "deck": make_error_deck(req.message, NO_PROVIDER_MESSAGE)})
@@ -537,13 +590,13 @@ async def chat_stream(req: ChatRequest, request: Request):
         messages = build_messages(req)
 
         # Fast path: Plan → deterministic Deck expansion (single call, no streaming).
-        # DISABLED BY DEFAULT due to prompt quality issues. Enable via USE_PLAN_EXPAND=1.
-        if os.environ.get("USE_PLAN_EXPAND", "").strip() in ("1", "true", "True"):
+        # One small call wins over the full streaming contract; disable with USE_PLAN_EXPAND=0.
+        if plan_expand_enabled():
             for provider in PROVIDER_POOL.order(providers):
                 client = get_client(provider["api_key"], provider["endpoint"])
                 model = provider["model"]
                 try:
-                    deck = await attempt_plan_expand(client, model, messages,
+                    deck = await attempt_plan_expand(client, model, req.message,
                                                      provider["max_tokens"])
                     yield _ndjson({"type": "done", "deck": _serve(deck, req, provider)})
                     return

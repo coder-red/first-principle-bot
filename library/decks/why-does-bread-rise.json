@@ -1,0 +1,134 @@
+{
+  "topic": "Bread Rising",
+  "question": "Why does bread rise?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Question of Rise",
+      "question": "What causes bread dough to increase in volume and become airy?",
+      "tag": "CONVENTION",
+      "principle": "Most people believe yeast is the sole cause of bread rising, making it big and fluffy.",
+      "chain": [],
+      "discarded": [
+        "The assumption that yeast acts alone.",
+        "The idea that 'fluffiness' is an inherent property."
+      ],
+      "explanation": "The common understanding attributes the rise of bread almost entirely to yeast. This view often overlooks the other essential components and physical processes involved in creating the characteristic volume and texture.",
+      "takeaway": "Yeast is part of the story, not the whole story."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Volume from Trapped Gas",
+      "question": "What directly causes the dough's volume to increase?",
+      "tag": "VERIFIED",
+      "principle": "Bread dough increases in volume because gas is generated and trapped within its structure.",
+      "chain": [
+        "Dough volume increases"
+      ],
+      "discarded": [],
+      "explanation": "The observable phenomenon of bread rising is a direct result of the dough's internal volume expanding. This expansion is caused by pockets of gas forming and being held within the dough matrix, pushing the structure outwards.",
+      "takeaway": "Rising is physical expansion by gas."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Gas Trapped by Elastic Network",
+      "question": "What allows the dough to trap and hold the generated gas?",
+      "tag": "VERIFIED",
+      "principle": "The dough's structure traps this gas because specific proteins in flour form an elastic, extensible network.",
+      "chain": [
+        "Dough volume increases",
+        "Gas trapped in dough"
+      ],
+      "discarded": [],
+      "explanation": "For gas to cause a sustained increase in volume, the dough must be able to contain it. This containment is provided by a stretchy, flexible network within the dough that can expand without breaking.",
+      "takeaway": "Dough needs a stretchy net to hold gas."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Gluten Forms the Network",
+      "question": "What are these proteins and how do they form this network?",
+      "tag": "VERIFIED",
+      "principle": "These proteins are primarily glutenin and gliadin, which link together to form the elastic network when mixed with water and kneaded.",
+      "chain": [
+        "Dough volume increases",
+        "Gas trapped in dough",
+        "Elastic network traps gas"
+      ],
+      "discarded": [],
+      "explanation": "Flour, particularly wheat flour, contains specific proteins. When hydrated and subjected to mechanical work like kneading, these proteins interact and bond, creating a continuous, stretchy matrix.",
+      "takeaway": "Flour proteins form the stretchy network."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Gluten's Viscoelastic Properties",
+      "question": "What fundamental property allows this protein network to trap gas and expand?",
+      "tag": "ATOMIC",
+      "principle": "Gluten, a complex of glutenin (elasticity) and gliadin (extensibility), forms a viscoelastic mesh that can stretch to hold gas bubbles and then solidify with heat.",
+      "chain": [
+        "Dough volume increases",
+        "Gas trapped in dough",
+        "Elastic network traps gas",
+        "Gluten is viscoelastic"
+      ],
+      "discarded": [],
+      "explanation": "Viscoelasticity is a material property combining both viscous (fluid-like, able to deform) and elastic (solid-like, able to return to shape) characteristics. Gluten's unique viscoelasticity allows it to stretch significantly under pressure from gas, forming thin cell walls, and then set into that expanded shape when heated.",
+      "takeaway": "Gluten's stretchiness and setting are key."
+    },
+    {
+      "phase": "rebuild",
+      "level": 3,
+      "title": "Gas Production Fills the Network",
+      "question": "How does the gas get into the gluten network to cause rising?",
+      "tag": "VERIFIED",
+      "principle": "Yeast metabolizes sugars in the dough, producing carbon dioxide gas that inflates the viscoelastic gluten network.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "While the gluten network provides the structure for expansion, it needs to be filled. Yeast organisms consume available sugars, and a byproduct of this process is carbon dioxide gas. This gas is released directly into the gluten matrix.",
+      "takeaway": "Yeast makes the gas, gluten holds it."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "Sustained Expansion and Setting",
+      "question": "How does the combined action lead to the final risen bread structure?",
+      "tag": "VERIFIED",
+      "principle": "The continuous generation of CO2 by yeast inflates the stretching gluten network, and subsequent heat solidifies this expanded structure.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "As yeast continues to produce gas, the gluten network stretches further, increasing the dough's volume. During baking, heat causes the trapped gas to expand even more, and crucially, it denatures the gluten proteins, making the expanded structure rigid and permanent.",
+      "takeaway": "Gas expands, heat sets the rise."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Dual Pillars of Bread Rise",
+      "question": "What does discarding the convention reveal about bread rising?",
+      "tag": "ATOMIC",
+      "principle": "Bread rising fundamentally depends on two distinct, equally essential mechanisms: the biochemical generation of gas and the physical capacity of the dough's protein network to trap and retain that gas.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "The common belief that yeast alone makes bread rise is incomplete. Yeast provides the gas, but the unique viscoelastic properties of gluten proteins in flour are what physically enable the dough to expand and hold that gas. Without either component, the characteristic rise of bread would not occur.",
+      "takeaway": "No gluten, no rise, even with yeast."
+    }
+  ],
+  "followups": [
+    "Why do different flours produce different bread textures?",
+    "What is the role of salt in bread dough?",
+    "How does sourdough starter differ from commercial yeast in leavening?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-does-bread-rise",
+    "sector": "everyday",
+    "model": "gemini-2.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

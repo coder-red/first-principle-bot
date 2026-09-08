@@ -1,0 +1,131 @@
+{
+  "topic": "The Geography of the Industrial Revolution",
+  "question": "Why did the Industrial Revolution happen in Britain and not somewhere else?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The British Origin",
+      "question": "Why did the transition to machine-powered production happen in Britain first?",
+      "tag": "CONVENTION",
+      "principle": "Most people believe Britain industrialised first because of superior scientific genius or unique cultural institutions.",
+      "chain": [
+        "Industrialization occurred in Britain first"
+      ],
+      "discarded": [
+        "The assumption that British scientific or cultural superiority was the primary driver of mechanization."
+      ],
+      "explanation": "While Britain had inventors, France and China had equivalent or superior scientific communities. Ideas alone do not change global production; there must be a compelling economic reason to build expensive machines to do what hands already do.",
+      "takeaway": "Invention is not adoption."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "The Math of Machines",
+      "question": "Under what conditions does a business owner replace human workers with machines?",
+      "tag": "VERIFIED",
+      "principle": "Mechanization is only profitable when the cost of fuel and capital is lower than the cost of the labor it replaces.",
+      "chain": [
+        "Industrialization occurred in Britain first",
+        "Mechanization requires high wages relative to energy"
+      ],
+      "discarded": [],
+      "explanation": "Early machines were highly inefficient, expensive to build, and broke down often. If labor is cheap, it is always more profitable to hire more people than to build a temperamental machine.",
+      "takeaway": "Cheap labor kills innovation."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "The British Price Anomaly",
+      "question": "How did Britain's labor and energy prices compare to the rest of the world?",
+      "tag": "VERIFIED",
+      "principle": "Eighteenth-century Britain had the highest wages in the world alongside the cheapest energy on earth.",
+      "chain": [
+        "Industrialization occurred in Britain first",
+        "Mechanization requires high wages relative to energy",
+        "Britain had uniquely high wages and cheap coal"
+      ],
+      "discarded": [],
+      "explanation": "In London, wages were twice as high as in Paris or Florence, and many times higher than in Beijing. Meanwhile, British coal was vastly cheaper than wood or coal anywhere else in Europe or Asia.",
+      "takeaway": "Britain was uniquely incentivized to substitute coal for people."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "The Origin of High Wages",
+      "question": "Why were British wages so high and its energy so cheap?",
+      "tag": "VERIFIED",
+      "principle": "Global trade empires drove up British wages, while geology made British coal uniquely accessible.",
+      "chain": [
+        "Industrialization occurred in Britain first",
+        "Mechanization requires high wages relative to energy",
+        "Britain had uniquely high wages and cheap coal",
+        "Trade raised wages while geology kept coal cheap"
+      ],
+      "discarded": [],
+      "explanation": "Britain's success in international trade created a massive boom in London, driving up wages across the country. To heat these growing cities, Britain turned to coal, which was cheap because massive deposits lay right next to the sea and navigable rivers.",
+      "takeaway": "Geography and empire created the price gap."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "The Pithead Economy",
+      "question": "What was the physical bottleneck that prevented other coal-rich regions from industrializing?",
+      "tag": "ATOMIC",
+      "principle": "Early steam engines were so inefficient they could only be run where fuel was essentially free: at the mouth of a coal mine.",
+      "chain": [
+        "Industrialization occurred in Britain first",
+        "Mechanization requires high wages relative to energy",
+        "Britain had uniquely high wages and cheap coal",
+        "Trade raised wages while geology kept coal cheap",
+        "Early engines required zero-cost fuel at the mine"
+      ],
+      "discarded": [],
+      "explanation": "The first steam engines converted less than one percent of coal's energy into work. They were used to pump water out of flooded coal mines. Because they sat on top of the coal mine, the fuel they burned was waste coal that cost nothing to transport. No other industry could afford to run them.",
+      "takeaway": "The steam engine was born at the only place it was economically viable."
+    },
+    {
+      "phase": "rebuild",
+      "level": 3,
+      "title": "The Efficiency Cycle",
+      "question": "How did a crude mine-pump turn into a global industrial revolution?",
+      "tag": "VERIFIED",
+      "principle": "Operating inefficient engines at coal mines allowed engineers to gradually improve their efficiency until they were cheap enough to run elsewhere.",
+      "chain": [
+        "Industrialization occurred in Britain first",
+        "Mechanization requires high wages relative to energy",
+        "Britain had uniquely high wages and cheap coal"
+      ],
+      "discarded": [],
+      "explanation": "Because Britain had a massive coal mining industry, it could afford to run thousands of highly inefficient early engines. This massive user base provided the cash and the practical testing ground for inventors to make engines efficient enough to power textile mills far away from the mines.",
+      "takeaway": "Scale enabled efficiency."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "The Necessity of Inefficiency",
+      "question": "What does this tell us about how major technological transitions occur?",
+      "tag": "VERIFIED",
+      "principle": "Breakthrough technologies are almost always too inefficient for general use; they require a highly specific, local economic subsidy to survive their infancy.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "If Britain did not have flooded coal mines right next to cheap coal, the steam engine would have been a useless invention. It survived and evolved only because there was one specific place on earth where extreme inefficiency did not matter. History is shaped by the physical spaces that tolerate crude first drafts.",
+      "takeaway": "Innovation needs a localized economic subsidy."
+    }
+  ],
+  "followups": [
+    "Why did China, which had massive coal deposits and advanced technology, not develop the steam engine first?",
+    "How did the transition to coal-powered shipping change the balance of global trade wages?",
+    "What is the modern equivalent of the coal mine pithead where highly inefficient new technologies are currently being subsidized by local conditions?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-did-the-industrial-revolution-happen-where-it-did",
+    "sector": "history",
+    "model": "gemini-3.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

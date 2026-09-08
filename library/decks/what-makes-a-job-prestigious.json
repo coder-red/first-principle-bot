@@ -1,0 +1,152 @@
+{
+  "topic": "Occupational Prestige",
+  "question": "What mechanism creates and maintains prestige in a job?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Surface View of Status",
+      "question": "Why do certain jobs command high prestige while others do not?",
+      "tag": "CONVENTION",
+      "principle": "Most people believe prestige reflects high income, intellectual difficulty, or societal importance.",
+      "chain": [
+        "Prestige comes from high salary, hard work, or societal utility"
+      ],
+      "discarded": [
+        "High income implies high prestige",
+        "Essential societal work is rewarded with high status"
+      ],
+      "explanation": "We routinely assume that respected jobs earned their standing through hard work, high pay, or moral value. Yet many high-paying roles have low prestige, and many vital roles pay poorly and carry little status.",
+      "takeaway": "Popular assumptions fail to predict which jobs hold prestige."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "Prestige as Social Deference",
+      "question": "What actually is prestige when stripped of popular assumptions?",
+      "tag": "VERIFIED",
+      "principle": "Prestige is not a property of the work itself, but the status deference granted to a title by a group.",
+      "chain": [
+        "Prestige comes from high salary, hard work, or societal utility",
+        "Prestige is collective deference, not intrinsic job value"
+      ],
+      "discarded": [
+        "Prestige is an inherent trait of a job"
+      ],
+      "explanation": "A job has no physical property called prestige. Prestige exists entirely in the minds of non-holders who choose to yield deference, priority, and respect to someone holding a specific title.",
+      "takeaway": "Prestige is a social grant of status, not a quality of the work."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "The Target of Deference",
+      "question": "Why do human groups grant social deference to specific roles?",
+      "tag": "VERIFIED",
+      "principle": "Groups accord deference to roles that control high-leverage resources like law, capital, health, or cultural authority.",
+      "chain": [
+        "Prestige comes from high salary, hard work, or societal utility",
+        "Prestige is collective deference, not intrinsic job value",
+        "Deference requires control over scarce, high-leverage resources"
+      ],
+      "discarded": [
+        "Deference is given out of gratitude or moral respect"
+      ],
+      "explanation": "Status flows toward institutional leverage. Roles that dictate where money moves, who goes to prison, who survives an illness, or what public narrative prevails command attention because their decisions ripple widely through society.",
+      "takeaway": "Deference tracks control over high-leverage societal levers."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "The Mechanism of Scarcity",
+      "question": "Why doesn't everyone enter high-leverage roles?",
+      "tag": "VERIFIED",
+      "principle": "High-leverage roles maintain deference by enforcing severe, hard-to-fake entry bottlenecks.",
+      "chain": [
+        "Prestige comes from high salary, hard work, or societal utility",
+        "Prestige is collective deference, not intrinsic job value",
+        "Deference requires control over scarce, high-leverage resources",
+        "Control requires hard-to-fake, costly barriers to entry"
+      ],
+      "discarded": [
+        "Anyone with talent can easily access prestigious roles"
+      ],
+      "explanation": "If a role is easy to obtain, its leverage becomes common and its signaling value disappears. Highly prestigious fields construct intense filters—years of credentialing, extreme selectivity, and elite gatekeeping—to limit supply.",
+      "takeaway": "Scarcity preserves the status signal of the title."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "The Bedrock Equation",
+      "question": "What is the irreducible foundation of occupational prestige?",
+      "tag": "ATOMIC",
+      "principle": "Prestige equals positional scarcity multiplied by structural leverage.",
+      "chain": [
+        "Prestige comes from high salary, hard work, or societal utility",
+        "Prestige is collective deference, not intrinsic job value",
+        "Deference requires control over scarce, high-leverage resources",
+        "Control requires hard-to-fake, costly barriers to entry",
+        "Prestige is positional scarcity multiplied by structural leverage"
+      ],
+      "discarded": [
+        "Prestige requires moral justification"
+      ],
+      "explanation": "At bedrock, prestige requires two conditions simultaneously: extreme difficulty of entry and high institutional leverage. If either factor drops to zero, prestige vanishes regardless of pay or social usefulness.",
+      "takeaway": "No scarcity plus no leverage means no prestige."
+    },
+    {
+      "phase": "rebuild",
+      "level": 1,
+      "title": "Rebuilding the Status Map",
+      "question": "How do scarcity and leverage explain real-world job hierarchies?",
+      "tag": "VERIFIED",
+      "principle": "Occupations gain or lose prestige as their barriers to entry and leverage change.",
+      "chain": [
+        "Prestige comes from high salary, hard work, or societal utility",
+        "Prestige is collective deference, not intrinsic job value",
+        "Deference requires control over scarce, high-leverage resources",
+        "Control requires hard-to-fake, costly barriers to entry",
+        "Prestige is positional scarcity multiplied by structural leverage"
+      ],
+      "discarded": [
+        "Job prestige is fixed or permanent"
+      ],
+      "explanation": "Tenured professors hold high prestige despite moderate pay because entry is hyper-scarce and they control knowledge validation. Business owners in trades can earn high incomes but hold lower prestige because entry is open. When automation or policy lowers entry barriers to a field, its prestige drops.",
+      "takeaway": "Prestige shifts whenever barriers or leverage shift."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "The Prestige Illusion",
+      "question": "What do we see once we separate prestige from merit?",
+      "tag": "VERIFIED",
+      "principle": "Prestige is a system for ranking structural power, disguised as a moral ranking of human worth.",
+      "chain": [
+        "Prestige comes from high salary, hard work, or societal utility",
+        "Prestige is collective deference, not intrinsic job value",
+        "Deference requires control over scarce, high-leverage resources",
+        "Control requires hard-to-fake, costly barriers to entry",
+        "Prestige is positional scarcity multiplied by structural leverage"
+      ],
+      "discarded": [
+        "Prestige measures personal worth or actual social utility"
+      ],
+      "explanation": "Chasing prestige means chasing artificial bottlenecks and leverage points, not necessarily civic value or individual fulfillment. Understanding this mechanism allows people to separate institutional gatekeeping from actual usefulness.",
+      "takeaway": "Prestige measures gatekeeping and leverage, not human value."
+    }
+  ],
+  "followups": [
+    "Why do some essential professions fail to erect artificial barriers to entry?",
+    "How does artificial intelligence alter the prestige of cognitive versus physical labor?",
+    "Can an emerging industry deliberately manufacture prestige from scratch?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "what-makes-a-job-prestigious",
+    "sector": "career",
+    "model": "gemini-3.6-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

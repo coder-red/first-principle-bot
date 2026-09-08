@@ -1,0 +1,141 @@
+{
+  "topic": "University Degrees and Hiring",
+  "question": "Why does a university degree get you hired?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Skill Fallacy",
+      "question": "Why do we assume a degree leads to a job?",
+      "tag": "ASSUMPTION",
+      "principle": "Most people assume degrees get you hired because universities teach the specific skills needed to perform the job.",
+      "chain": [
+        "Degrees provide direct job skill training"
+      ],
+      "discarded": [
+        "Degrees get you hired primarily because of specific job-skill training"
+      ],
+      "explanation": "The standard view treats a university as a job-training center. Students pay tuition, complete coursework, and trade acquired job skills for a salary. But this fails to explain why employers hire history or philosophy graduates for roles in finance, technology sales, or consulting.",
+      "takeaway": "Course content is not what most employers are buying."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "The Content Gap",
+      "question": "Does university coursework actually teach daily job tasks?",
+      "tag": "VERIFIED",
+      "principle": "Most corporate jobs require practical skills that are never taught in university classrooms.",
+      "chain": [
+        "Degrees provide direct job skill training",
+        "Degree content rarely matches daily job tasks"
+      ],
+      "discarded": [
+        "Employers hire graduates for classroom knowledge"
+      ],
+      "explanation": "Companies routinely spend months training new graduates on software, workflows, and industry rules from scratch. Academic coursework rarely matches daily workplace tasks. If practical knowledge were the primary driver of hiring, unspecialized degrees would hold zero market value.",
+      "takeaway": "Most job training happens on the job, not in class."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "The Hidden Trait Problem",
+      "question": "What problem does an employer face when reading resumes?",
+      "tag": "VERIFIED",
+      "principle": "Employers face asymmetric information: they cannot observe a candidate's actual discipline or intelligence before hiring.",
+      "chain": [
+        "Degrees provide direct job skill training",
+        "Degree content rarely matches daily job tasks",
+        "Employers cannot directly observe candidate ability"
+      ],
+      "discarded": [
+        "Resumes and interviews reveal true candidate capability"
+      ],
+      "explanation": "Job applicants always claim to be hardworking, smart, and reliable. An employer cannot see these hidden traits directly during an interview process. Hiring the wrong person results in months of lost salary, team disruption, and high replacement costs.",
+      "takeaway": "Employers cannot read a candidate's mind or work ethic."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "The Cost of Direct Testing",
+      "question": "Why do employers not test every applicant directly?",
+      "tag": "VERIFIED",
+      "principle": "Evaluating thousands of job applicants through deep custom tests is too slow and expensive for companies.",
+      "chain": [
+        "Degrees provide direct job skill training",
+        "Degree content rarely matches daily job tasks",
+        "Employers cannot directly observe candidate ability",
+        "Directly testing candidate ability is too expensive"
+      ],
+      "discarded": [
+        "Companies can afford to evaluate every applicant's true skill directly"
+      ],
+      "explanation": "Creating and grading comprehensive work tests for thousands of applicants requires immense time and financial resources. Employers need an external, low-cost filter that narrows down the candidate pool long before an interview takes place.",
+      "takeaway": "Direct evaluation of every applicant is too expensive."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Costly Signaling",
+      "question": "Why does a degree work as a reliable filter?",
+      "tag": "ATOMIC",
+      "principle": "A signal communicates unseen traits reliably only when acquiring it is significantly harder for low-trait individuals than high-trait individuals.",
+      "chain": [
+        "Degrees provide direct job skill training",
+        "Degree content rarely matches daily job tasks",
+        "Employers cannot directly observe candidate ability",
+        "Directly testing candidate ability is too expensive",
+        "Costly signals resolve asymmetric information"
+      ],
+      "discarded": [
+        "Degrees are valuable because of institutional prestige or tradition"
+      ],
+      "explanation": "Completing four years of university demands sustained focus, cognitive capacity, compliance with authority, and financial effort. Because this burden is far higher for low-discipline or low-ability individuals, earning a degree serves as proof of those hidden traits. The value lives in how difficult the degree is to fake, not what was studied.",
+      "takeaway": "A degree is valuable because it is expensive to fake."
+    },
+    {
+      "phase": "rebuild",
+      "level": 1,
+      "title": "Outsourced Screening",
+      "question": "How do employers construct hiring around this signal?",
+      "tag": "VERIFIED",
+      "principle": "Employers set degree requirements to outsource candidate screening costs to universities.",
+      "chain": [
+        "Costly signals resolve asymmetric information",
+        "Employers use degree filters to minimize hiring risk"
+      ],
+      "discarded": [],
+      "explanation": "By requiring a bachelor's degree, employers instantly filter out unvetted applicants at zero cost to themselves. They accept the risk of missing talented non-degree holders in exchange for a standardized guarantee that a candidate can complete long-term complex goals.",
+      "takeaway": "Degrees act as an outsourced screening tool."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "The Threat to the Degree",
+      "question": "What happens when alternative signals become cheaper?",
+      "tag": "VERIFIED",
+      "principle": "A degree loses its hiring power the moment cheaper, verified proof of capability becomes available.",
+      "chain": [
+        "Costly signals resolve asymmetric information",
+        "Alternative cheap signals break degree dominance"
+      ],
+      "discarded": [],
+      "explanation": "Degrees dominate hiring only because verifying alternative proof used to be difficult. As verified public work, automated skill assessments, and industry certificates become cheaper for employers to trust, the economic necessity of holding a degree collapses.",
+      "takeaway": "If a cheaper reliable signal appears, the degree premium drops."
+    }
+  ],
+  "followups": [
+    "Why do employers keep raising degree requirements for jobs that previously did not require them?",
+    "Why do self-taught portfolios struggle to replace degree signals in traditional corporate hiring?",
+    "How does grade inflation alter the effectiveness of a degree as a costly signal?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-does-a-university-degree-get-you-hired",
+    "sector": "career",
+    "model": "gemini-3.6-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

@@ -1,0 +1,145 @@
+{
+  "topic": "Why Job Interviews Exist",
+  "question": "Why do organizations conduct live job interviews instead of hiring based on written records and performance tests?",
+  "reframed": false,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "The Default Practice",
+      "question": "Why do employers talk to job candidates before hiring them?",
+      "tag": "ASSUMPTION",
+      "principle": "Organizations conduct live interviews to measure a candidate's true performance and personal fit.",
+      "chain": [
+        "Employers need to select workers"
+      ],
+      "discarded": [
+        "Interviews accurately predict future job performance",
+        "Personality fit is objectively measured in a conversation"
+      ],
+      "explanation": "Almost every employer interviews candidates before making a hiring decision. The common belief is that speaking face-to-face reveals who will be good at the job. However, decades of organizational data show that standard unstructured interviews are weak predictors of actual workplace performance.",
+      "takeaway": "We assume interviews exist because they accurately measure ability."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "The Information Gap",
+      "question": "Why aren't written resumes and credentials sufficient to hire someone?",
+      "tag": "VERIFIED",
+      "principle": "Static records contain incomplete and self-reported data that create information asymmetry between buyer and seller.",
+      "chain": [
+        "Employers need to select workers",
+        "Resumes contain incomplete, self-reported data"
+      ],
+      "discarded": [
+        "Paper credentials provide a complete representation of worker capability"
+      ],
+      "explanation": "A resume lists past claims, degrees, and selected titles. The applicant knows their own true capabilities, habits, and shortcomings, while the employer does not. This creates information asymmetry where the seller of labor holds hidden information that static paper cannot verify.",
+      "takeaway": "Credentials state past claims, not future execution."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "The Cost of Misallocation",
+      "question": "Why can't employers simply hire workers on trial and fire those who fail?",
+      "tag": "VERIFIED",
+      "principle": "Reversing a hiring decision carries high irreversible transaction costs.",
+      "chain": [
+        "Employers need to select workers",
+        "Resumes contain incomplete, self-reported data",
+        "Hiring mistakes carry high irreversible costs"
+      ],
+      "discarded": [
+        "Employment decisions are easily reversible at zero cost"
+      ],
+      "explanation": "Onboarding a worker requires spending wages, training time, and operational focus. Removing an underperforming employee takes months and disrupts team output. Because exit is costly and slow, employers are forced to filter candidates before forming a contract.",
+      "takeaway": "High exit costs require pre-selection screening."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "The Nature of Human Labor",
+      "question": "Why can't job performance be pre-tested like a manufactured physical product?",
+      "tag": "VERIFIED",
+      "principle": "Human labor capability is non-standardized and context-dependent, preventing static upfront inspection.",
+      "chain": [
+        "Employers need to select workers",
+        "Resumes contain incomplete, self-reported data",
+        "Hiring mistakes carry high irreversible costs",
+        "Labor capacity is context-bound future behavior"
+      ],
+      "discarded": [
+        "Labor is a standardized commodity with static, pre-measurable specs"
+      ],
+      "explanation": "A physical product can be stress-tested against fixed specifications before purchase. Human labor is a capacity for continuous, adaptive behavior in dynamic environments. You cannot inspect the finished output of labor before the labor actually occurs.",
+      "takeaway": "Labor is continuous future behavior, not a finished good."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Incomplete Labor Contracts",
+      "question": "What irreducible constraint makes the interview mechanism necessary?",
+      "tag": "ATOMIC",
+      "principle": "Employment contracts are fundamentally incomplete under severe information asymmetry.",
+      "chain": [
+        "Employers need to select workers",
+        "Resumes contain incomplete, self-reported data",
+        "Hiring mistakes carry high irreversible costs",
+        "Labor capacity is context-bound future behavior",
+        "Employment rests on incomplete contracts under asymmetry"
+      ],
+      "discarded": [
+        "An employment contract can fully specify every future duty and outcome"
+      ],
+      "explanation": "An employment contract cannot specify every task, decision, or crisis a worker will face in the future. The employer buys a promise of adaptive effort from a stranger. The interview exists as a real-time behavioral probe to sample a candidate's live responses under uncertainty before signing an incomplete contract.",
+      "takeaway": "Interviews are real-time probes for incomplete labor contracts."
+    },
+    {
+      "phase": "rebuild",
+      "level": 2,
+      "title": "The Live Behavioral Sample",
+      "question": "How does interactive dialogue mitigate the incomplete contract problem?",
+      "tag": "VERIFIED",
+      "principle": "Interactive dialogue allows dynamic sampling of real-time communication and spontaneous reasoning.",
+      "chain": [
+        "Employment rests on incomplete contracts under asymmetry",
+        "Live conversation provides a dynamic behavioral sample"
+      ],
+      "discarded": [
+        "Interviews are designed primarily to assess factual knowledge"
+      ],
+      "explanation": "Because future labor obligations cannot be fully written down, employers must test how candidates react to unexpected prompts in real time. Live conversation reveals spontaneous reasoning, emotional regulation, and communication structure under stress, offering a direct sample of future interactive behavior.",
+      "takeaway": "Live conversation tests real-time adaptability."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Managerial Risk Distribution",
+      "question": "Why do unstructured interviews persist despite superior quantitative screening methods?",
+      "tag": "ATOMIC",
+      "principle": "Interviews survive because they distribute personal accountability and hedge decision risk for hiring managers.",
+      "chain": [
+        "Interviews persist as social mechanisms to hedge decision risk"
+      ],
+      "discarded": [
+        "Interviews survive purely because of their predictive accuracy"
+      ],
+      "explanation": "If hiring was purely about statistical prediction, standardized work samples would replace free-form conversations entirely. Unstructured interviews persist because decision-makers require a social rationale to defend their choices. If a hire fails, the panel format proves due diligence was performed and distributes personal blame across the group.",
+      "takeaway": "Interviews protect hiring managers as much as they evaluate candidates."
+    }
+  ],
+  "followups": [
+    "Why do structured interviews predict job performance better than unstructured ones?",
+    "How does automated video screening alter the information asymmetry between applicants and employers?",
+    "Can work-sample testing completely eliminate the need for conversational interviews?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-do-job-interviews-exist",
+    "sector": "career",
+    "model": "gemini-3.6-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

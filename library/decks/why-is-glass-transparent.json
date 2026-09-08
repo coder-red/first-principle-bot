@@ -1,0 +1,133 @@
+{
+  "topic": "Glass Transparency",
+  "question": "Why is glass transparent to visible light?",
+  "reframed": true,
+  "cards": [
+    {
+      "phase": "question",
+      "level": 0,
+      "title": "Starting Point: Light Passes Through",
+      "question": "What is the common understanding of glass transparency?",
+      "tag": "CONVENTION",
+      "principle": "Glass is transparent because light passes through it easily and without obstruction.",
+      "chain": [
+        "Glass lets light pass through"
+      ],
+      "discarded": [
+        "Transparency is a simple property of 'clear' materials."
+      ],
+      "explanation": "Most people observe that glass allows them to see through it. This is a description of the phenomenon, not an explanation of its underlying cause. The question is why this happens.",
+      "takeaway": "Transparency means light goes through."
+    },
+    {
+      "phase": "descent",
+      "level": 1,
+      "title": "No Absorption of Photons",
+      "question": "What must happen for light to pass through a material?",
+      "tag": "VERIFIED",
+      "principle": "Light passes through a material when its constituent photons are not absorbed by the material's internal structure.",
+      "chain": [
+        "Glass lets light pass through",
+        "Light photons are not absorbed"
+      ],
+      "discarded": [],
+      "explanation": "Light is made of photons, discrete packets of energy. For light to pass through something, these photons must travel from one side to the other without being stopped or significantly scattered. The primary way a material stops light is by absorbing its photons.",
+      "takeaway": "Transparency requires no photon absorption."
+    },
+    {
+      "phase": "descent",
+      "level": 2,
+      "title": "Electrons Not Excited",
+      "question": "What causes a material to absorb photons?",
+      "tag": "VERIFIED",
+      "principle": "A material absorbs a photon when the photon's energy is transferred to one of the material's electrons, exciting it to a higher energy state.",
+      "chain": [
+        "Glass lets light pass through",
+        "Light photons are not absorbed",
+        "Electrons are not excited by photons"
+      ],
+      "discarded": [],
+      "explanation": "Electrons in atoms and molecules occupy specific energy levels. When a photon strikes an electron, its energy can be absorbed if it provides the exact amount needed to 'jump' the electron to a higher, unoccupied energy level. If this energy transfer occurs, the photon ceases to exist.",
+      "takeaway": "Photon absorption excites electrons."
+    },
+    {
+      "phase": "descent",
+      "level": 3,
+      "title": "Energy Mismatch for Excitation",
+      "question": "Why are glass's electrons not excited by visible light photons?",
+      "tag": "VERIFIED",
+      "principle": "Electrons can only be excited by photons whose energy precisely matches the difference between an occupied electron energy level and an available higher energy level.",
+      "chain": [
+        "Glass lets light pass through",
+        "Light photons are not absorbed",
+        "Electrons are not excited by photons",
+        "Photon energy must match electron energy gap"
+      ],
+      "discarded": [],
+      "explanation": "Quantum mechanics dictates that electron energy levels are discrete and quantized, not continuous. An electron cannot absorb just any amount of energy; it must be the exact amount to bridge a specific 'energy gap' to an allowed higher state. If the photon's energy does not match such a gap, it will not be absorbed.",
+      "takeaway": "Electron excitation is energy-specific."
+    },
+    {
+      "phase": "bedrock",
+      "level": 4,
+      "title": "Visible Light Lacks Sufficient Energy",
+      "question": "What is the fundamental reason visible light photons do not excite glass's electrons?",
+      "tag": "ATOMIC",
+      "principle": "Visible light photons possess insufficient energy to bridge the large electron energy gap (band gap) inherent in the atomic and molecular structure of glass.",
+      "chain": [
+        "Glass lets light pass through",
+        "Light photons are not absorbed",
+        "Electrons are not excited by photons",
+        "Photon energy must match electron energy gap",
+        "Visible light energy is too low for glass's gap"
+      ],
+      "discarded": [],
+      "explanation": "Glass, primarily silicon dioxide, has strong covalent bonds that hold its electrons tightly. This creates a large 'band gap' between the highest occupied electron energy levels and the lowest unoccupied ones. The energy carried by individual visible light photons is simply too small to overcome this gap and excite an electron.",
+      "takeaway": "Glass has a large electron energy gap."
+    },
+    {
+      "phase": "rebuild",
+      "level": 1,
+      "title": "Reconstruction: Unabsorbed Light Passes Through",
+      "question": "How does the electron energy gap explain glass transparency?",
+      "tag": "VERIFIED",
+      "principle": "Because visible light photons lack the specific energy to excite glass's electrons, they are not absorbed and thus pass through the material, making it transparent.",
+      "chain": [
+        "Visible light energy is too low for glass's gap",
+        "Photon energy must match electron energy gap",
+        "Electrons are not excited by photons",
+        "Light photons are not absorbed",
+        "Glass lets light pass through"
+      ],
+      "discarded": [],
+      "explanation": "The fundamental reason glass is transparent to visible light is that the energy of visible light photons is below the minimum energy required to excite electrons within the glass structure. Without this energy match, photons cannot be absorbed. Since they are not absorbed, they continue their path through the material, allowing us to see through it.",
+      "takeaway": "No energy match means no absorption, so light transmits."
+    },
+    {
+      "phase": "insight",
+      "level": 0,
+      "title": "Transparency is a Quantum Energy Mismatch",
+      "question": "What does this first-principles view reveal about transparency?",
+      "tag": "",
+      "principle": "Transparency is not about a material being 'empty' or 'loose,' but a precise quantum mechanical condition where photon energy does not match the electron energy transitions available within the material.",
+      "chain": [],
+      "discarded": [],
+      "explanation": "Discarding the idea that transparency is about physical 'holes' or 'clearness' reveals that it's a specific quantum interaction. A material is transparent to a certain type of light if the photons of that light do not possess the exact energy required to 'kick' an electron to a higher energy state. This explains why glass is transparent to visible light but opaque to ultraviolet light (which has higher energy photons) and why metals are opaque (they have many available electron energy states that can absorb visible light photons).",
+      "takeaway": "Transparency is about energy, not emptiness."
+    }
+  ],
+  "followups": [
+    "Why are metals opaque to visible light?",
+    "Why does glass absorb ultraviolet light?",
+    "How does the amorphous structure of glass contribute to its clarity (lack of scattering)?"
+  ],
+  "verified": true,
+  "issues": [],
+  "meta": {
+    "slug": "why-is-glass-transparent",
+    "sector": "everyday",
+    "model": "gemini-2.5-flash",
+    "generated_at": "2026-08-21T07:06:59Z",
+    "reviewed": true
+  }
+}

@@ -26,14 +26,20 @@ def isolated_provider_env(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def no_optional_features(monkeypatch):
-    """Access control and persistence are off unless a test turns them on.
+    """Access control, persistence and the speed paths are off unless a test
+    turns them on.
 
     Same reasoning as the provider env above: a developer with APP_ACCESS_TOKEN
     set in their .env would otherwise see every endpoint test 401, and a set
-    STATE_DB would have the suite writing to their real state file.
+    STATE_DB would have the suite writing to their real state file. Likewise the
+    instant lookup and plan-expand paths default ON in production — they are
+    pinned off here so the classic provider/stream tests still exercise the
+    classic path, and the tests that own them re-enable the flags explicitly.
     """
     monkeypatch.delenv("APP_ACCESS_TOKEN", raising=False)
     monkeypatch.delenv("STATE_DB", raising=False)
+    monkeypatch.setenv("INSTANT_LOOKUP", "0")
+    monkeypatch.setenv("USE_PLAN_EXPAND", "0")
 
 
 @pytest.fixture(autouse=True)
