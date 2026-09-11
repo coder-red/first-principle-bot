@@ -7,4 +7,4 @@
 # pip cannot do on its own — hence the second line.
 -r requirements.txt
 
-playwright==1.60.0
+playwright==1.62.0
